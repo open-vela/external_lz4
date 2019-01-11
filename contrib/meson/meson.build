@@ -43,7 +43,7 @@ if r.returncode() == 0
     message('Project version is now: @0@'.format(lz4_version))
   endif
 else
-  warning('Cannot find project version in @0@'.format(lz4_h_file))
+  message('Cannot find project version in @0@'.format(lz4_h_file))
 endif
 
 lz4_libversion = lz4_version

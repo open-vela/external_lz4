@@ -1,123 +1,116 @@
 language: c
-
 matrix:
   fast_finish: true
   include:
     # OS X Mavericks
-    - name: (macOS) General Test
-      os: osx
-      compiler: clang
-      script:
-        - make -C tests test-lz4 MOREFLAGS='-Werror -Wconversion -Wno-sign-conversion'
-        - CFLAGS=-m32 make -C tests clean test-lz4-contentSize
+    - os: osx
+      install:
+        - export CC=clang
+      env: Ubu=OS_X_Mavericks Cmd='make -C tests test-lz4 MOREFLAGS="-Werror -Wconversion -Wno-sign-conversion" && CFLAGS=-m32 make -C tests clean test-lz4-contentSize' COMPILER=clang
 
     # Container-based 12.04 LTS Server Edition 64 bit (doesn't support 32-bit includes)
-    - name: (Precise) benchmark test
-      dist: precise
-      script:
-        - make -C tests test-lz4 test-lz4c test-fullbench
+    - os: linux
+      sudo: false
+      env: Ubu=12.04cont Cmd='make -C tests test-lz4 test-lz4c test-fullbench' COMPILER=cc
 
-    - name: (Precise) frame and fuzzer test
-      dist: precise
-      install:
-        - sudo sysctl -w vm.mmap_min_addr=4096
-      script:
-        - make -C tests test-frametest test-fuzzer
+    - os: linux
+      sudo: required
+      env: Ubu=12.04cont Cmd='sudo sysctl -w vm.mmap_min_addr="4096" && make -C tests test-frametest test-fuzzer' COMPILER=cc
 
-    - name: (Precise) g++ and clang CMake test
-      dist: precise
-      script:
-        - make gpptest
-        - make clean
-        - make examples
-        - make clean cmake
-        - make clean travis-install
-        - make clean clangtest
+    - os: linux
+      sudo: false
+      env: Ubu=12.04cont Cmd="make gpptest && make clean && make examples && make clean cmake && make clean travis-install && make clean clangtest" COMPILER=cc
 
 
     # 14.04 LTS Server Edition 64 bit
-    - name: (Trusty) i386 gcc test
+    - env: Ubu=14.04 Cmd='make -C tests test MOREFLAGS=-mx32' COMPILER=cc
       dist: trusty
+      sudo: required
       addons:
         apt:
           packages:
             - libc6-dev-i386
             - gcc-multilib
-      script:
-        - make -C tests test MOREFLAGS=-mx32
 
     # presume clang >= v3.9.0
-    - name: (Trusty) USan test
+    - env: Ubu=14.04 Cmd='make usan MOREFLAGS=-Wcomma -Werror' COMPILER=clang
       dist: trusty
-      compiler: clang
-      script:
-        - make usan MOREFLAGS=-Wcomma -Werror
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - clang
 
-    - name: (Trusty) valgrind test
+    - env: Ubu=14.04 Cmd='make c_standards && make -C tests test-lz4 test-mem' COMPILER=cc
       dist: trusty
-      install:
-        - sudo apt-get install -qq valgrind
-      script:
-        - make c_standards
-        - make -C tests test-lz4 test-mem
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - valgrind
 
-    - name: (Trusty) c-to-c++ test
+    - env: Ubu=14.04 Cmd='make ctocpptest' COMPILER=cc
       dist: trusty
-      script:
-        - make ctocpptest
+      sudo: false
 
-    - name: (Trusty) i386 benchmark + version test
+    - env: Ubu=14.04 Cmd='make -C tests test-lz4c32 test-fullbench32 versionsTest' COMPILER=cc
       dist: trusty
-      install:
-        - sudo apt-get install -qq python3 libc6-dev-i386 gcc-multilib
-      script:
-        - make -C tests test-lz4c32 test-fullbench32 versionsTest
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - python3
+            - libc6-dev-i386
+            - gcc-multilib
 
-    - name: (Trusty) i386 frame + fuzzer test
+    - env: Ubu=14.04 Cmd='sudo sysctl -w vm.mmap_min_addr="4096" && make -C tests test-frametest32 test-fuzzer32' COMPILER=cc
       dist: trusty
-      install:
-        - sudo apt-get install -qq libc6-dev-i386 gcc-multilib
-        - sudo sysctl -w vm.mmap_min_addr=4096
-      script:
-        - make -C tests test-frametest32 test-fuzzer32
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - libc6-dev-i386
+            - gcc-multilib
 
-    - name: (Trusty) gcc-6 standard C compilation
+    - env: Ubu=14.04 Cmd='make c_standards CC=gcc-6 && make -C tests test-lz4 CC=gcc-6 MOREFLAGS=-Werror' COMPILER=gcc-6
       dist: trusty
+      sudo: required
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
             - gcc-6
-      env:
-        - CC=gcc-6
-      script:
-        - make c_standards
-        - make -C tests test-lz4 MOREFLAGS=-Werror
 
-    - name: (Trusty) arm + aarch64 compilation
+    - env: Ubu=14.04 Cmd='make platformTest CC=arm-linux-gnueabi-gcc QEMU_SYS=qemu-arm-static && make platformTest CC=aarch64-linux-gnu-gcc QEMU_SYS=qemu-aarch64-static' COMPILER=arm-linux-gnueabi-gcc
       dist: trusty
-      install:
-        - sudo apt-get install -qq
-            qemu-system-arm
-            qemu-user-static
-            gcc-arm-linux-gnueabi
-            libc6-dev-armel-cross
-            gcc-aarch64-linux-gnu
-            libc6-dev-arm64-cross
-      script:
-        - make platformTest CC=arm-linux-gnueabi-gcc QEMU_SYS=qemu-arm-static
-        - make platformTest CC=aarch64-linux-gnu-gcc QEMU_SYS=qemu-aarch64-static
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - qemu-system-arm
+            - qemu-user-static
+            - gcc-arm-linux-gnueabi
+            - libc6-dev-armel-cross
+            - gcc-aarch64-linux-gnu
+            - libc6-dev-arm64-cross
 
-    - name: (Xenial) gcc-5 compilation
-      dist: xenial
-      install:
-        - sudo apt-get install -qq libc6-dev-i386 gcc-multilib
-      script:
-        - make -C tests test-lz4 clean test-lz4c32 MOREFLAGS=-Werror
-
-    - name: (Trusty) clang-3.8 compilation
+    - env: Ubu=14.04 Cmd='make -C tests test-lz4 clean test-lz4c32 CC=gcc-5 MOREFLAGS=-Werror' COMPILER=gcc-5
       dist: trusty
+      sudo: required
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - libc6-dev-i386
+            - gcc-multilib
+            - gcc-5
+            - gcc-5-multilib
+
+    - env: Ubu=14.04 Cmd='make -C tests test-lz4 CC=clang-3.8' COMPILER=clang-3.8
+      dist: trusty
+      sudo: required
       addons:
         apt:
           sources:
@@ -125,28 +118,29 @@ matrix:
             - llvm-toolchain-precise-3.8
           packages:
             - clang-3.8
-      script:
-        - make -C tests test-lz4 CC=clang-3.8
 
-    - name: (Trusty) PowerPC + PPC64 compilation
+    - env: Ubu=14.04 Cmd='make platformTest CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc-static && make platformTest CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc64-static MOREFLAGS=-m64' COMPILER=powerpc-linux-gnu-gcc
       dist: trusty
-      install:
-        - sudo apt-get install -qq qemu-system-ppc qemu-user-static gcc-powerpc-linux-gnu
-      script:
-        - make platformTest CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc-static
-        - make platformTest CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc64-static MOREFLAGS=-m64
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - qemu-system-ppc
+            - qemu-user-static
+            - gcc-powerpc-linux-gnu
 
-    - name: (Trusty) scan-build + cppcheck
+    - env: Ubu=14.04 Cmd='make staticAnalyze && make cppcheck' COMPILER=clang
       dist: trusty
-      compiler: clang
-      install:
-        - sudo apt-get install -qq cppcheck
-      script:
-        - make staticAnalyze
-        - make cppcheck
+      sudo: required
+      addons:
+        apt:
+          packages:
+            - clang
+            - cppcheck
 
-    - name: (Trusty) gcc-4.4 compilation
+    - env: Ubu=14.04 Cmd='make clean all CC=gcc-4.4 MOREFLAGS=-Werror && make clean && CFLAGS=-fPIC LDFLAGS="-pie -fPIE -D_FORTIFY_SOURCE=2" make -C programs' COMPILER=gcc-4.4
       dist: trusty
+      sudo: required
       addons:
         apt:
           sources:
@@ -155,41 +149,38 @@ matrix:
             - libc6-dev-i386
             - gcc-multilib
             - gcc-4.4
-      script:
-        - make clean all CC=gcc-4.4 MOREFLAGS=-Werror
-        - make clean
-        - CFLAGS=-fPIC LDFLAGS='-pie -fPIE -D_FORTIFY_SOURCE=2' make -C programs
 
     # tag-specific test
-    - name: tag build
-      if: tag =~ ^v[0-9]\.[0-9]
+    - if: tag =~ ^v[0-9]\.[0-9]
       os: linux
-      script:
-        - make -C tests checkTag
-        - tests/checkTag "$TRAVIS_BRANCH"
+      sudo: false
+      env: Cmd="make -C tests checkTag && tests/checkTag $TRAVIS_BRANCH " COMPILER=cc
 
-    - name: (Xenial) Meson + clang build
-      env: ALLOW_FAILURES=true
-      dist: xenial
-      language: cpp
-      compiler: clang
-      install:
-        - sudo apt-get install -qq python3 tree
-        - curl -o ~/ninja.zip -L 'https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip'
-            && unzip ~/ninja.zip -d ~/.local/bin
-        - curl -o ~/get-pip.py 'https://bootstrap.pypa.io/get-pip.py'
-            && python3 ~/get-pip.py --user
-            && pip3 install --user meson
-      script:
-        - meson setup
-            --buildtype=debug
-            -Db_lundef=false
-            -Dauto_features=enabled
-            -Ddefault_library=both
-            -Dbuild_{programs,contrib,tests,examples}=true
-            contrib/meson build
-        - cd build
-        - DESTDIR=./staging ninja install
-        - tree ./staging
+    - dist: xenial
+      sudo: required
+      env: BUILD_SYSTEM='meson'
   allow_failures:
-    - env: ALLOW_FAILURES=true
+    - env: BUILD_SYSTEM='meson'
+
+script:
+  - if [ "${BUILD_SYSTEM}" = meson ]; then
+      sudo apt-get install -qq python3 tree
+        && curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+        && python3 get-pip.py --user && rm get-pip.py
+        && pip3 install --user meson ninja
+        && export CC=clang CXX=clang++
+        && meson --buildtype=debug
+                 -Db_lundef=false
+                 -Dauto_features=enabled
+                 -Ddefault_library=both
+                 -Dbuild_{programs,contrib,tests,examples}=true
+                 contrib/meson build
+        && cd "$_"
+        && DESTDIR=./staging ninja install
+        && tree ./staging;
+      travis_terminate "$?";
+    fi
+  - uname -a
+  - echo Cmd=$Cmd
+  - $COMPILER -v
+  - sh -c "$Cmd"
