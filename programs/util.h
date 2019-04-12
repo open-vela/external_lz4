@@ -45,7 +45,6 @@ extern "C" {
 #  include <utime.h>      /* utime */
 #endif
 #include <time.h>         /* time */
-#include <limits.h>       /* INT_MAX */
 #include <errno.h>
 
 
@@ -392,11 +391,11 @@ UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
 UTIL_STATIC int UTIL_prepareFileList(const char* dirName, char** bufStart, size_t* pos, char** bufEnd)
 {
     char* path;
-    size_t dirLength, nbFiles = 0;
+    int dirLength, nbFiles = 0;
     WIN32_FIND_DATAA cFile;
     HANDLE hFile;
 
-    dirLength = strlen(dirName);
+    dirLength = (int)strlen(dirName);
     path = (char*) malloc(dirLength + 3);
     if (!path) return 0;
 
@@ -413,7 +412,7 @@ UTIL_STATIC int UTIL_prepareFileList(const char* dirName, char** bufStart, size_
     free(path);
 
     do {
-        size_t pathLength;
+        int pathLength;
         int const fnameLength = (int)strlen(cFile.cFileName);
         path = (char*) malloc(dirLength + fnameLength + 2);
         if (!path) { FindClose(hFile); return 0; }
@@ -446,8 +445,7 @@ UTIL_STATIC int UTIL_prepareFileList(const char* dirName, char** bufStart, size_
     } while (FindNextFileA(hFile, &cFile));
 
     FindClose(hFile);
-    assert(nbFiles < INT_MAX);
-    return (int)nbFiles;
+    return nbFiles;
 }
 
 #elif defined(__linux__) || (PLATFORM_POSIX_VERSION >= 200112L)  /* opendir, readdir require POSIX.1-2001 */
@@ -555,15 +553,15 @@ UTIL_createFileList(const char** inputNames, unsigned inputNamesNb, char** alloc
             }
         } else {
             char* bufend = buf + bufSize;
-            nbFiles += (unsigned)UTIL_prepareFileList(inputNames[i], &buf, &pos, &bufend);
+            nbFiles += UTIL_prepareFileList(inputNames[i], &buf, &pos, &bufend);
             if (buf == NULL) return NULL;
             assert(bufend > buf);
-            bufSize = (size_t)(bufend - buf);
+            bufSize = bufend - buf;
     }   }
 
     if (nbFiles == 0) { free(buf); return NULL; }
 
-    fileTable = (const char**)malloc(((size_t)nbFiles+1) * sizeof(const char*));
+    fileTable = (const char**)malloc((nbFiles+1) * sizeof(const char*));
     if (!fileTable) { free(buf); return NULL; }
 
     for (i=0, pos=0; i<nbFiles; i++) {
