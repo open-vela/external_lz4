@@ -114,11 +114,6 @@ only the latest one will be applied.
 * `-b#`:
   Benchmark mode, using `#` compression level.
 
-* `--list`:
-  List mode.
-  Lists information about .lz4 files. 
-  Useful if compressed with --content-size flag.
-
 ### Operation modifiers
 
 * `-#`:
@@ -166,7 +161,6 @@ only the latest one will be applied.
   Multiple input files.
   Compressed file names will be appended a `.lz4` suffix.
   This mode also reduces notification level.
-  Can also be used to list multiple files.
   `lz4 -m` has a behavior equivalent to `gzip -k`
   (it preserves source files by default).
 

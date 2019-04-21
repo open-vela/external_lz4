@@ -40,7 +40,6 @@
 #include <stdlib.h>   /* exit, calloc, free */
 #include <string.h>   /* strcmp, strlen */
 #include "bench.h"    /* BMK_benchFile, BMK_SetNbIterations, BMK_SetBlocksize, BMK_SetPause */
-#include "lz4frame.h"
 #include "lz4io.h"    /* LZ4IO_compressFilename, LZ4IO_decompressFilename, LZ4IO_compressMultipleFilenames */
 #include "lz4hc.h"    /* LZ4HC_CLEVEL_MAX */
 #include "lz4.h"      /* LZ4_VERSION_STRING */
@@ -142,7 +141,6 @@ static int usage_advanced(const char* exeName)
     DISPLAY( " -BX    : enable block checksum (default:disabled) \n");
     DISPLAY( "--no-frame-crc : disable stream checksum (default:enabled) \n");
     DISPLAY( "--content-size : compressed frame includes original size (default:not present)\n");
-    DISPLAY( "--list  : lists information about .lz4 files. Useful if compressed with --content-size flag.\n");
     DISPLAY( "--[no-]sparse  : sparse mode (default:enabled on file, disabled on stdout)\n");
     DISPLAY( "--favor-decSpeed: compressed files decompress faster, but are less compressed \n");
     DISPLAY( "--fast[=#]: switch to ultra fast compression level (default: %i)\n", 1);
@@ -288,7 +286,7 @@ static int longCommandWArg(const char** stringPtr, const char* longCommand)
     return result;
 }
 
-typedef enum { om_auto, om_compress, om_decompress, om_test, om_bench, om_list } operationMode_e;
+typedef enum { om_auto, om_compress, om_decompress, om_test, om_bench } operationMode_e;
 
 /** determineOpMode() :
  *  auto-determine operation mode, based on input filename extension
@@ -385,7 +383,6 @@ int main(int argc, const char** argv)
                 if (!strcmp(argument,  "--no-frame-crc")) { LZ4IO_setStreamChecksumMode(prefs, 0); continue; }
                 if (!strcmp(argument,  "--content-size")) { LZ4IO_setContentSize(prefs, 1); continue; }
                 if (!strcmp(argument,  "--no-content-size")) { LZ4IO_setContentSize(prefs, 0); continue; }
-                if (!strcmp(argument,  "--list")) { mode = om_list; continue; }
                 if (!strcmp(argument,  "--sparse")) { LZ4IO_setSparseFile(prefs, 2); continue; }
                 if (!strcmp(argument,  "--no-sparse")) { LZ4IO_setSparseFile(prefs, 0); continue; }
                 if (!strcmp(argument,  "--favor-decSpeed")) { LZ4IO_favorDecSpeed(prefs, 1); continue; }
@@ -655,7 +652,15 @@ int main(int argc, const char** argv)
 
     /* No output filename ==> try to select one automatically (when possible) */
     while ((!output_filename) && (multiple_inputs==0)) {
-        if (!IS_CONSOLE(stdout)) { output_filename=stdoutmark; break; }   /* Default to stdout whenever possible (i.e. not a console) */
+
+        if (!IS_CONSOLE(stdout)) {
+            /* Default to stdout whenever stdout is not the console.
+             * Note : this policy is likely to change in the future, don't rely on it !
+             * prefer using an explicit `-c` flag */
+            DISPLAYLEVEL(1, "Warning : using stdout as default output. Do not rely on this behavior: use explicit `-c` instead ! \n");
+            output_filename=stdoutmark;
+            break;
+        }
         if (mode == om_auto) {  /* auto-determine compression or decompression, based on file extension */
             mode = determineOpMode(input_filename);
         }
@@ -685,10 +690,14 @@ int main(int argc, const char** argv)
         break;
     }
 
-    /* Check if output is defined as console; trigger an error in this case */
+    if (multiple_inputs==0) assert(output_filename);
+    /* when multiple_inputs==1, output_filename may simply be useless,
+     * however, output_filename must be !NULL for next strcmp() tests */
     if (!output_filename) output_filename = "*\\dummy^!//";
+
+    /* Check if output is defined as console; trigger an error in this case */
     if (!strcmp(output_filename,stdoutmark) && IS_CONSOLE(stdout) && !forceStdout) {
-        DISPLAYLEVEL(1, "refusing to write to console without -c\n");
+        DISPLAYLEVEL(1, "refusing to write to console without -c \n");
         exit(1);
     }
     /* Downgrade notification level in stdout and multiple file mode */
@@ -704,28 +713,23 @@ int main(int argc, const char** argv)
     LZ4IO_setNotificationLevel((int)displayLevel);
     if (ifnIdx == 0) multiple_inputs = 0;
     if (mode == om_decompress) {
-        if (multiple_inputs)
-            operationResult = LZ4IO_decompressMultipleFilenames(prefs, inFileNames, ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION);
-        else
+        if (multiple_inputs) {
+            assert(ifnIdx <= INT_MAX);
+            operationResult = LZ4IO_decompressMultipleFilenames(prefs, inFileNames, (int)ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION);
+        } else {
             operationResult = DEFAULT_DECOMPRESSOR(prefs, input_filename, output_filename);
-    } else if (mode == om_list){
-        if(!multiple_inputs){
-            inFileNames[ifnIdx++] = input_filename;
         }
-        operationResult = LZ4IO_getCompressedFilesInfo(inFileNames, ifnIdx);
-        inFileNames=NULL;
-    } else {
-       /* compression is default action */
+    } else {   /* compression is default action */
         if (legacy_format) {
             DISPLAYLEVEL(3, "! Generating LZ4 Legacy format (deprecated) ! \n");
             LZ4IO_compressFilename_Legacy(prefs, input_filename, output_filename, cLevel);
         } else {
-            if (multiple_inputs)
-                operationResult = LZ4IO_compressMultipleFilenames(prefs, inFileNames, ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION, cLevel);
-            else
+            if (multiple_inputs) {
+                assert(ifnIdx <= INT_MAX);
+                operationResult = LZ4IO_compressMultipleFilenames(prefs, inFileNames, (int)ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION, cLevel);
+            } else {
                 operationResult = DEFAULT_COMPRESSOR(prefs, input_filename, output_filename, cLevel);
-        }
-    }
+    }   }   }
 
 _cleanup:
     if (main_pause) waitEnter();
