@@ -54,6 +54,14 @@ static const char nulmark[] = "/dev/null";
 
 typedef struct LZ4IO_prefs_s LZ4IO_prefs_t;
 
+typedef struct {
+  LZ4F_frameInfo_t frameInfo;
+  const char* fileName;
+  stat_t fileStat;
+} LZ4F_compFileInfo_t;
+
+#define LZ4F_INIT_FILEINFO   { (LZ4F_frameInfo_t) LZ4F_INIT_FRAMEINFO, NULL, stat_t() }
+
 LZ4IO_prefs_t* LZ4IO_defaultPreferences(void);
 void LZ4IO_freePreferences(LZ4IO_prefs_t* const prefs);
 
@@ -115,6 +123,8 @@ int LZ4IO_setSparseFile(LZ4IO_prefs_t* const prefs, int enable);
 
 /* Default setting : 0 == no content size present in frame header */
 int LZ4IO_setContentSize(LZ4IO_prefs_t* const prefs, int enable);
+
+int LZ4IO_displayCompressedFilesInfo(const char** inFileNames,const size_t ifnIdx);
 
 /* Default setting : 0 == src file preserved */
 void LZ4IO_setRemoveSrcFile(LZ4IO_prefs_t* const prefs, unsigned flag);
