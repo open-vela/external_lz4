@@ -56,48 +56,17 @@ LZ4_VERSION=$(LIBVER)
 MD2ROFF   = ronn
 MD2ROFF_FLAGS = --roff --warnings --manual="User Commands" --organization="lz4 $(LZ4_VERSION)"
 
-TARGET_OS ?= $(shell uname)
-ifeq ($(TARGET_OS),)
-  TARGET_OS ?= $(OS)
-endif
 
 # Define *.exe as extension for Windows systems
-ifneq (,$(filter Windows%,$(TARGET_OS)))
-EXT  :=.exe
-else
-ifneq (,$(filter MINGW%,$(TARGET_OS)))
-EXT  :=.exe
-else
-ifneq (,$(filter MSYS%,$(TARGET_OS)))
-EXT  :=.exe
-else
-ifneq (,$(filter CYGWIN%,$(TARGET_OS)))
-EXT  :=.exe
-else
-EXT  :=
-endif
-endif
-endif
-endif
-
-#determine if dev/nul based on host environment
-ifneq (,$(filter MINGW%,$(shell uname)))
-VOID := /dev/null
-else
-ifneq (,$(filter MSYS%,$(shell uname)))
-VOID := /dev/null
-else
-ifneq (,$(filter CYGWIN%,$(shell uname)))
-VOID := /dev/null
-else
 ifneq (,$(filter Windows%,$(OS)))
+EXT  :=.exe
 VOID := nul
 else
-VOID  := /dev/null
+EXT  :=
+VOID := /dev/null
 endif
-endif
-endif
-endif
+
+
 
 default: lz4-release
 
@@ -140,7 +109,7 @@ clean:
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifneq (,$(filter Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT% MINGW64_NT% MSYS% CYGWIN_NT%,$(shell uname)))
+ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT-6.1 MINGW64_NT-6.1 MINGW32_NT-10.0 MINGW64_NT-10.0))
 
 unlz4: lz4
 	ln -s lz4$(EXT) unlz4$(EXT)
