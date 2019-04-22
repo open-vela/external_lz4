@@ -56,7 +56,17 @@ LZ4_VERSION=$(LIBVER)
 MD2ROFF   = ronn
 MD2ROFF_FLAGS = --roff --warnings --manual="User Commands" --organization="lz4 $(LZ4_VERSION)"
 
-include ../Makefile.inc
+
+# Define *.exe as extension for Windows systems
+ifneq (,$(filter Windows%,$(OS)))
+EXT  :=.exe
+VOID := nul
+else
+EXT  :=
+VOID := /dev/null
+endif
+
+
 
 default: lz4-release
 
@@ -99,7 +109,7 @@ clean:
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifneq (,$(filter Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT% MINGW64_NT% MSYS% CYGWIN_NT%,$(shell uname)))
+ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT-6.1 MINGW64_NT-6.1 MINGW32_NT-10.0 MINGW64_NT-10.0))
 
 unlz4: lz4
 	ln -s lz4$(EXT) unlz4$(EXT)
