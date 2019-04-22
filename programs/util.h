@@ -379,7 +379,7 @@ UTIL_STATIC U64 UTIL_getTotalFileSize(const char** fileNamesTable, unsigned nbFi
 */
 UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
 {
-    void* const newptr = realloc(ptr, size);
+    void* newptr = realloc(ptr, size);
     if (newptr) return newptr;
     free(ptr);
     return NULL;
@@ -529,8 +529,7 @@ UTIL_STATIC int UTIL_prepareFileList(const char* dirName, char** bufStart, size_
  * In case of error UTIL_createFileList returns NULL and UTIL_freeFileList should not be called.
  */
 UTIL_STATIC const char**
-UTIL_createFileList(const char** inputNames, unsigned inputNamesNb,
-                    char** allocatedBuffer, unsigned* allocatedNamesNb)
+UTIL_createFileList(const char** inputNames, unsigned inputNamesNb, char** allocatedBuffer, unsigned* allocatedNamesNb)
 {
     size_t pos;
     unsigned i, nbFiles;
@@ -544,14 +543,16 @@ UTIL_createFileList(const char** inputNames, unsigned inputNamesNb,
         if (!UTIL_isDirectory(inputNames[i])) {
             size_t const len = strlen(inputNames[i]);
             if (pos + len >= bufSize) {
-                while (pos + len >= bufSize) bufSize += LIST_SIZE_INCREASE;
-                buf = (char*)UTIL_realloc(buf, bufSize);
+                size_t newListSize = bufSize + LIST_SIZE_INCREASE;
+                buf = (char*)UTIL_realloc(buf, newListSize);
+                bufSize = newListSize;
                 if (!buf) return NULL;
             }
-            assert(pos + len < bufSize);
-            strncpy(buf + pos, inputNames[i], bufSize - pos);
-            pos += len + 1;
-            nbFiles++;
+            if (pos + len < bufSize) {
+                strncpy(buf + pos, inputNames[i], bufSize - pos);
+                pos += len + 1;
+                nbFiles++;
+            }
         } else {
             char* bufend = buf + bufSize;
             nbFiles += (unsigned)UTIL_prepareFileList(inputNames[i], &buf, &pos, &bufend);
