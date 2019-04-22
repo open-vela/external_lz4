@@ -53,11 +53,11 @@
 #include <time.h>      /* clock */
 #include <sys/types.h> /* stat64 */
 #include <sys/stat.h>  /* stat64 */
-#include "lz4io.h"
 #include "lz4.h"       /* still required for legacy format */
 #include "lz4hc.h"     /* still required for legacy format */
 #define LZ4F_STATIC_LINKING_ONLY
 #include "lz4frame.h"
+#include "lz4io.h"
 
 
 /*****************************
@@ -1264,4 +1264,116 @@ int LZ4IO_decompressMultipleFilenames(LZ4IO_prefs_t* const prefs, const char** i
     LZ4IO_freeDResources(ress);
     free(outFileName);
     return missingFiles + skippedFiles;
+}
+
+
+/* ********************************************************************* */
+/* **********************   LZ4 --list command   *********************** */
+/* ********************************************************************* */
+
+typedef struct {
+  LZ4F_frameInfo_t frameInfo;
+  const char* fileName;
+  unsigned long long fileSize;
+} LZ4IO_cFileInfo_t;
+
+#define LZ4IO_INIT_CFILEINFO   { LZ4F_INIT_FRAMEINFO, NULL, 0ULL }
+
+
+/* This function is limited,
+ * it only works fine for a file consisting of a single valid frame.
+ * It will / may stop program execution if a single filename is wrong.
+ * It will not look at content beyond first frame header.
+ *
+ * Things to improve :
+ * - continue execution after an error, just report an error code, keep all memory clean
+ * - check the entire file for additional content after first frame
+ *   + combine results from multiple frames, give total
+ * - Optional :
+ *  + report nb of blocks, hence max. possible decompressed size (when not reported in header)
+ *  + report block type (B4D, B7I, etc.)
+ */
+static int
+LZ4IO_getCompressedFileInfo(LZ4IO_cFileInfo_t* cfinfo, const char* input_filename)
+{
+    /* Get file size */
+    cfinfo->fileSize = UTIL_getFileSize(input_filename);  /* returns 0 if cannot read information */
+
+    /* Get filename without path prefix */
+    {   const char* b = strrchr(input_filename, '/');
+        if (!b) {
+            b = strrchr(input_filename, '\\');
+        }
+        if (b && b != input_filename) {
+            b++;
+        } else {
+            b = input_filename;
+        }
+        cfinfo->fileName = b;
+    }
+
+    /* Read file and extract header */
+    {   size_t readSize = LZ4F_HEADER_SIZE_MAX;
+        void* buffer = malloc(readSize);
+        LZ4F_dctx* dctx;
+
+        if (!buffer) EXM_THROW(21, "Allocation error : not enough memory");
+        {   LZ4F_errorCode_t const errorCode =
+                LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION);
+            if (LZ4F_isError(errorCode))
+                EXM_THROW(60, "Can't create LZ4F context : %s",
+                            LZ4F_getErrorName(errorCode));
+        }
+
+        {   FILE* const finput = LZ4IO_openSrcFile(input_filename);
+            if (finput==NULL) return 1;
+            if (!fread(buffer, readSize, 1, finput)) {
+                EXM_THROW(30, "Error reading %s ", input_filename);
+            }
+            fclose(finput);
+        }
+
+        {   LZ4F_errorCode_t const errorCode =
+                LZ4F_getFrameInfo(dctx, &cfinfo->frameInfo, buffer, &readSize);
+            if (LZ4F_isError(errorCode))
+                EXM_THROW(60, "Cannot interpret LZ4 frame : %s",
+                            LZ4F_getErrorName(errorCode));
+        }
+
+        /* clean */
+        free(buffer);
+        LZ4F_freeDecompressionContext(dctx);
+    }
+
+    return 0;
+}
+
+int LZ4IO_displayCompressedFilesInfo(const char** inFileNames, const size_t ifnIdx)
+{
+    size_t idx;
+
+    DISPLAY("%16s\t%-20s\t%-20s\t%-10s\t%s\n",
+        "BlockChecksumFlag","Compressed", "Uncompressed", "Ratio", "Filename");
+
+    for (idx=0; idx<ifnIdx; idx++) {
+        /* Get file info */
+        LZ4IO_cFileInfo_t cfinfo = LZ4IO_INIT_CFILEINFO;
+        int const op_result = LZ4IO_getCompressedFileInfo(&cfinfo, inFileNames[idx]);
+        if (op_result != 0) {
+            DISPLAYLEVEL(1, "Failed to get frame info for file %s\n", inFileNames[idx]);
+            /* Don't bother processing any more file */
+            return 1;
+        }
+        if (cfinfo.frameInfo.contentSize) {
+            double const ratio = (double)cfinfo.fileSize / cfinfo.frameInfo.contentSize;
+            DISPLAY("%-16d\t%-20llu\t%-20llu\t%-8.4f\t%s\n",
+                    cfinfo.frameInfo.blockChecksumFlag, cfinfo.fileSize,
+                    cfinfo.frameInfo.contentSize, ratio, cfinfo.fileName);
+        } else {
+            DISPLAY("%-16d\t%-20llu\t%-20s\t%-10s\t%s\n",
+                    cfinfo.frameInfo.blockChecksumFlag, cfinfo.fileSize,
+                    "-", "-", cfinfo.fileName);
+        }
+    }
+    return 0;
 }
