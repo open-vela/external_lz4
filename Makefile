@@ -36,15 +36,50 @@ TESTDIR = tests
 EXDIR   = examples
 
 
-# Define nul output
-ifneq (,$(filter Windows%,$(OS)))
-EXT  = .exe
-VOID = nul
-else
-EXT  =
-VOID = /dev/null
+# Define *.exe as extension for targetting Windows systems
+TARGET_OS ?= $(shell uname)
+ifeq ($(TARGET_OS),)
+  TARGET_OS ?= $(OS)
 endif
 
+ifneq (,$(filter Windows%,$(TARGET_OS)))
+LIBLZ4 = liblz4-$(LIBVER_MAJOR)
+EXT  = .exe
+else
+EXT  = .exe
+ifneq (,$(filter MINGW%,$(TARGET_OS)))
+EXT  = .exe
+else
+ifneq (,$(filter MSYS%,$(TARGET_OS)))
+EXT  = .exe
+else
+ifneq (,$(filter CYGWIN%,$(TARGET_OS)))
+EXT  = .exe
+else
+EXT  =
+endif
+endif
+endif
+endif
+
+#determine if dev/nul based on host environment
+ifneq (,$(filter MINGW%,$(shell uname)))
+VOID := /dev/null
+else
+ifneq (,$(filter MSYS%,$(shell uname)))
+VOID := /dev/null
+else
+ifneq (,$(filter CYGWIN%,$(shell uname)))
+VOID := /dev/null
+else
+ifneq (,$(filter Windows%,$(OS)))
+VOID := nul
+else
+VOID  := /dev/null
+endif
+endif
+endif
+endif
 
 .PHONY: default
 default: lib-release lz4-release
@@ -93,7 +128,7 @@ clean:
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT-6.1 MINGW64_NT-6.1 MINGW32_NT-10.0 MINGW64_NT-10.0))
+ifneq (,$(filter Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32% MINGW64% CYGWIN% MSYS%,$(shell uname)))
 HOST_OS = POSIX
 
 .PHONY: install uninstall
