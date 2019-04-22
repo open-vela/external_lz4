@@ -45,6 +45,7 @@ LIBVER  := $(shell echo $(LIBVER_SCRIPT))
 BUILD_SHARED:=yes
 BUILD_STATIC:=yes
 
+OS ?= $(shell uname)
 CPPFLAGS+= -DXXH_NAMESPACE=LZ4_
 CFLAGS  ?= -O3
 DEBUGFLAGS:= -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow \
@@ -70,7 +71,11 @@ else
 	SHARED_EXT_VER = $(SHARED_EXT).$(LIBVER)
 endif
 
-include ../Makefile.inc
+ifneq (,$(filter Windows%,$(OS)))
+LIBLZ4 = liblz4-$(LIBVER_MAJOR)
+else
+LIBLZ4 = liblz4.$(SHARED_EXT_VER)
+endif
 
 .PHONY: default
 default: lib-release
@@ -101,8 +106,8 @@ endif
 $(LIBLZ4): $(SRCFILES)
 ifeq ($(BUILD_SHARED),yes)  # can be disabled on command line
 	@echo compiling dynamic library $(LIBVER)
-ifeq ($(WINBASED),yes)
-	$(Q)$(CC) $(FLAGS) -DLZ4_DLL_EXPORT=1 -shared $^ -o dll/$@.dll -Wl,--out-implib,dll/$(LIBLZ4_EXP)
+ifneq (,$(filter Windows%,$(OS)))
+	$(Q)$(CC) $(FLAGS) -DLZ4_DLL_EXPORT=1 -shared $^ -o dll/$@.dll -Wl,--out-implib,dll/liblz4.lib
 else
 	$(Q)$(CC) $(FLAGS) -shared $^ -fPIC -fvisibility=hidden $(SONAME_FLAGS) -o $@
 	@echo creating versioned links
@@ -111,19 +116,18 @@ else
 endif
 endif
 
-ifeq (,$(filter MINGW%,$(TARGET_OS)))
 liblz4: $(LIBLZ4)
-endif
 
 clean:
-	$(Q)$(RM) core *.o liblz4.pc dll/$(LIBLZ4).dll dll/$(LIBLZ4_EXP)
+	$(Q)$(RM) core *.o liblz4.pc dll/liblz4.dll dll/liblz4.lib
 	$(Q)$(RM) *.a *.$(SHARED_EXT) *.$(SHARED_EXT_MAJOR) *.$(SHARED_EXT_VER)
 	@echo Cleaning library completed
+
 
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifeq ($(POSIX_ENV),Yes)
+ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD MINGW32_NT-6.1 MINGW64_NT-6.1 MINGW32_NT-10.0 MINGW64_NT-10.0))
 
 .PHONY: listL120
 listL120:  # extract lines >= 120 characters in *.{c,h}, by Takayuki Matsuoka (note : $$, for Makefile compatibility)
@@ -180,9 +184,9 @@ ifeq ($(BUILD_SHARED),yes)
 # Traditionnally, one installs the DLLs in the bin directory as programs
 # search them first in their directory. This allows to not pollute system
 # directories (like c:/windows/system32), nor modify the PATH variable.
-ifeq ($(WINBASED),yes)
+ifneq (,$(filter Windows%,$(OS)))
 	$(Q)$(INSTALL_PROGRAM) dll/$(LIBLZ4).dll $(DESTDIR)$(bindir)
-	$(Q)$(INSTALL_PROGRAM) dll/$(LIBLZ4_EXP) $(DESTDIR)$(libdir)
+	$(Q)$(INSTALL_PROGRAM) dll/liblz4.lib $(DESTDIR)$(libdir)
 else
 	$(Q)$(INSTALL_PROGRAM) liblz4.$(SHARED_EXT_VER) $(DESTDIR)$(libdir)
 	$(Q)ln -sf liblz4.$(SHARED_EXT_VER) $(DESTDIR)$(libdir)/liblz4.$(SHARED_EXT_MAJOR)
@@ -197,9 +201,9 @@ endif
 
 uninstall:
 	$(Q)$(RM) $(DESTDIR)$(pkgconfigdir)/liblz4.pc
-ifeq (WINBASED,1)
+ifneq (,$(filter Windows%,$(OS)))
 	$(Q)$(RM) $(DESTDIR)$(bindir)/$(LIBLZ4).dll
-	$(Q)$(RM) $(DESTDIR)$(libdir)/$(LIBLZ4_EXP)
+	$(Q)$(RM) $(DESTDIR)$(libdir)/liblz4.lib
 else
 	$(Q)$(RM) $(DESTDIR)$(libdir)/liblz4.$(SHARED_EXT)
 	$(Q)$(RM) $(DESTDIR)$(libdir)/liblz4.$(SHARED_EXT_MAJOR)
