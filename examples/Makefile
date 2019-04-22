@@ -36,7 +36,16 @@ TESTFILE  = Makefile
 LZ4DIR   := ../lib
 LZ4       = ../programs/lz4
 
-include ../Makefile.inc
+
+# Define *.exe as extension for Windows systems
+ifneq (,$(filter Windows%,$(OS)))
+EXT =.exe
+VOID = nul
+else
+EXT =
+VOID = /dev/null
+endif
+
 
 default: all
 
