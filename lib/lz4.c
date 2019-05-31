@@ -106,6 +106,7 @@
 #define LZ4_DISABLE_DEPRECATE_WARNINGS /* due to LZ4_decompress_safe_withPrefix64k */
 #endif
 
+#define LZ4_STATIC_LINKING_ONLY  /* LZ4_DISTANCE_MAX */
 #include "lz4.h"
 /* see also "memory routines" below */
 
@@ -412,10 +413,6 @@ static const int LZ4_minLength = (MFLIMIT+1);
 #define MB *(1 <<20)
 #define GB *(1U<<30)
 
-#ifndef LZ4_DISTANCE_MAX   /* can be user - defined at compile time */
-#  define LZ4_DISTANCE_MAX 65535
-#endif
-
 #if (LZ4_DISTANCE_MAX > 65535)   /* max supported by LZ4 format */
 #  error "LZ4_DISTANCE_MAX is too big : must be <= 65535"
 #endif
@@ -465,7 +462,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
             _BitScanForward64( &r, (U64)val );
             return (int)(r>>3);
 #       elif (defined(__clang__) || (defined(__GNUC__) && (__GNUC__>=3))) && !defined(LZ4_FORCE_SW_BITCOUNT)
-            return (__builtin_ctzll((U64)val) >> 3);
+            return (unsigned)__builtin_ctzll((U64)val) >> 3;
 #       else
             static const int DeBruijnBytePos[64] = { 0, 0, 0, 0, 0, 1, 1, 2,
                                                      0, 3, 1, 3, 1, 4, 2, 7,
@@ -483,7 +480,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
             _BitScanForward( &r, (U32)val );
             return (int)(r>>3);
 #       elif (defined(__clang__) || (defined(__GNUC__) && (__GNUC__>=3))) && !defined(LZ4_FORCE_SW_BITCOUNT)
-            return (__builtin_ctz((U32)val) >> 3);
+            return (unsigned)__builtin_ctz((U32)val) >> 3;
 #       else
             static const int DeBruijnBytePos[32] = { 0, 0, 3, 0, 3, 1, 3, 0,
                                                      3, 2, 2, 1, 3, 2, 0, 1,
@@ -499,7 +496,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
             _BitScanReverse64( &r, val );
             return (unsigned)(r>>3);
 #       elif (defined(__clang__) || (defined(__GNUC__) && (__GNUC__>=3))) && !defined(LZ4_FORCE_SW_BITCOUNT)
-            return (__builtin_clzll((U64)val) >> 3);
+            return (unsigned)__builtin_clzll((U64)val) >> 3;
 #       else
             static const U32 by32 = sizeof(val)*4;  /* 32 on 64 bits (goal), 16 on 32 bits.
                 Just to avoid some static analyzer complaining about shift by 32 on 32-bits target.
@@ -516,7 +513,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
             _BitScanReverse( &r, (unsigned long)val );
             return (unsigned)(r>>3);
 #       elif (defined(__clang__) || (defined(__GNUC__) && (__GNUC__>=3))) && !defined(LZ4_FORCE_SW_BITCOUNT)
-            return (__builtin_clz((U32)val) >> 3);
+            return (unsigned)__builtin_clz((U32)val) >> 3;
 #       else
             unsigned r;
             if (!(val>>16)) { r=2; val>>=8; } else { r=0; val>>=24; }
@@ -1708,9 +1705,10 @@ LZ4_decompress_generic(
             /* get matchlength */
             length = token & ML_MASK;
 
+            if ((checkOffset) && (unlikely(match + dictSize < lowPrefix))) { goto _output_error; } /* Error : offset outside buffers */
+
             if (length == ML_MASK) {
               variable_length_error error = ok;
-              if ((checkOffset) && (unlikely(match + dictSize < lowPrefix))) { goto _output_error; } /* Error : offset outside buffers */
               length += read_variable_length(&ip, iend - LASTLITERALS + 1, endOnInput, 0, &error);
               if (error != ok) { goto _output_error; }
                 if ((safeDecode) && unlikely((uptrval)(op)+length<(uptrval)op)) { goto _output_error; } /* overflow detection */
@@ -1734,7 +1732,6 @@ LZ4_decompress_generic(
                         continue;
             }   }   }
 
-            if ((checkOffset) && (unlikely(match + dictSize < lowPrefix))) { goto _output_error; } /* Error : offset outside buffers */
             /* match starting within external dictionary */
             if ((dict==usingExtDict) && (match < lowPrefix)) {
                 if (unlikely(op+length > oend-LASTLITERALS)) {
