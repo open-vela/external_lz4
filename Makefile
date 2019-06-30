@@ -34,7 +34,6 @@ LZ4DIR  = lib
 PRGDIR  = programs
 TESTDIR = tests
 EXDIR   = examples
-FUZZDIR = ossfuzz
 
 include Makefile.inc
 
@@ -77,7 +76,6 @@ clean:
 	@$(MAKE) -C $(PRGDIR) $@ > $(VOID)
 	@$(MAKE) -C $(TESTDIR) $@ > $(VOID)
 	@$(MAKE) -C $(EXDIR) $@ > $(VOID)
-	@$(MAKE) -C $(FUZZDIR) $@ > $(VOID)
 	@$(MAKE) -C contrib/gen_manual $@ > $(VOID)
 	@$(RM) lz4$(EXT)
 	@echo Cleaning completed
