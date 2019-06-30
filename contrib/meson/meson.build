@@ -69,17 +69,17 @@ use_debug = get_option('debug')
 debug_level = get_option('debug_level')
 use_backtrace = get_option('backtrace')
 
-bin_programs = get_option('bin_programs')
-bin_contrib = get_option('bin_contrib')
-bin_tests = get_option('bin_tests')
-bin_examples = get_option('bin_examples')
+build_programs = get_option('build_programs')
+build_contrib = get_option('build_contrib')
+build_tests = get_option('build_tests')
+build_examples = get_option('build_examples')
 #feature_multi_thread = get_option('multi_thread')
 
 # =============================================================================
 # Dependencies
 # =============================================================================
 
-#libm_dep = cc.find_library('m', required: bin_tests)
+#libm_dep = cc.find_library('m', required: build_tests)
 #thread_dep = dependency('threads', required: feature_multi_thread)
 #use_multi_thread = thread_dep.found()
 
@@ -108,18 +108,18 @@ endif
 
 subdir('lib')
 
-if bin_programs
+if build_programs
   subdir('programs')
 endif
 
-if bin_tests
+if build_tests
   subdir('tests')
 endif
 
-if bin_contrib
+if build_contrib
   subdir('contrib')
 endif
 
-if bin_examples
+if build_examples
   subdir('examples')
 endif
