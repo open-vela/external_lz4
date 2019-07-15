@@ -57,4 +57,3 @@ $(LZ4DIR)/liblz4.a:
 
 .PHONY: clean
 clean: compress_fuzzer_clean decompress_fuzzer_clean
-	$(MAKE) -C $(LZ4DIR) clean
