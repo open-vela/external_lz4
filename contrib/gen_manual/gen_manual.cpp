@@ -96,9 +96,10 @@ void print_line(stringstream &sout, string line)
     epos = line.find("*/");
     if (spos!=string::npos && epos!=string::npos) {
         sout << line.substr(0, spos);
-        sout << "</b>" << line.substr(spos) << "<b>" << '\n';
+        sout << "</b>" << line.substr(spos) << "<b>" << endl;
     } else {
-        sout << line << '\n';
+      //  fprintf(stderr, "lines=%s\n", line.c_str());
+        sout << line << endl;
     }
 }
 
