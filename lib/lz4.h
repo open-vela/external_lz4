@@ -186,8 +186,7 @@ LZ4LIB_API int LZ4_compressBound(int inputSize);
     The larger the acceleration value, the faster the algorithm, but also the lesser the compression.
     It's a trade-off. It can be fine tuned, with each successive value providing roughly +~3% to speed.
     An acceleration value of "1" is the same as regular LZ4_compress_default()
-    Values <= 0 will be replaced by LZ4_ACCELERATION_DEFAULT (currently == 1, see lz4.c).
-    Values > LZ4_ACCELERATION_MAX will be replaced by LZ4_ACCELERATION_MAX (currently == 65537, see lz4.c).
+    Values <= 0 will be replaced by ACCELERATION_DEFAULT (currently == 1, see lz4.c).
 */
 LZ4LIB_API int LZ4_compress_fast (const char* src, char* dst, int srcSize, int dstCapacity, int acceleration);
 
@@ -565,8 +564,7 @@ typedef struct LZ4_stream_t_internal LZ4_stream_t_internal;
 struct LZ4_stream_t_internal {
     uint32_t hashTable[LZ4_HASH_SIZE_U32];
     uint32_t currentOffset;
-    uint16_t dirty;
-    uint16_t tableType;
+    uint32_t tableType;
     const uint8_t* dictionary;
     const LZ4_stream_t_internal* dictCtx;
     uint32_t dictSize;
@@ -585,8 +583,7 @@ typedef struct LZ4_stream_t_internal LZ4_stream_t_internal;
 struct LZ4_stream_t_internal {
     unsigned int hashTable[LZ4_HASH_SIZE_U32];
     unsigned int currentOffset;
-    unsigned short dirty;
-    unsigned short tableType;
+    unsigned int tableType;
     const unsigned char* dictionary;
     const LZ4_stream_t_internal* dictCtx;
     unsigned int dictSize;
