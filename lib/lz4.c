@@ -45,16 +45,10 @@
 #endif
 
 /*
- * LZ4_ACCELERATION_DEFAULT :
+ * ACCELERATION_DEFAULT :
  * Select "acceleration" for LZ4_compress_fast() when parameter value <= 0
  */
-#define LZ4_ACCELERATION_DEFAULT 1
-/*
- * LZ4_ACCELERATION_MAX :
- * Any "acceleration" value higher than this threshold
- * get treated as LZ4_ACCELERATION_MAX instead (fix #876)
- */
-#define LZ4_ACCELERATION_MAX 65537
+#define ACCELERATION_DEFAULT 1
 
 
 /*-************************************
@@ -764,15 +758,6 @@ LZ4_FORCE_INLINE void
 LZ4_prepareTable(LZ4_stream_t_internal* const cctx,
            const int inputSize,
            const tableType_t tableType) {
-    /* If compression failed during the previous step, then the context
-     * is marked as dirty, therefore, it has to be fully reset.
-     */
-    if (cctx->dirty) {
-        DEBUGLOG(5, "LZ4_prepareTable: Full reset for %p", cctx);
-        MEM_INIT(cctx, 0, sizeof(LZ4_stream_t_internal));
-        return;
-    }
-
     /* If the table hasn't been used, it's guaranteed to be zeroed out, and is
      * therefore safe to use no matter what mode we're in. Otherwise, we figure
      * out if it's safe to leave as is or whether it needs to be reset.
@@ -1206,8 +1191,7 @@ int LZ4_compress_fast_extState(void* state, const char* source, char* dest, int 
 {
     LZ4_stream_t_internal* const ctx = & LZ4_initStream(state, sizeof(LZ4_stream_t)) -> internal_donotuse;
     assert(ctx != NULL);
-    if (acceleration < 1) acceleration = LZ4_ACCELERATION_DEFAULT;
-    if (acceleration > LZ4_ACCELERATION_MAX) acceleration = LZ4_ACCELERATION_MAX;
+    if (acceleration < 1) acceleration = ACCELERATION_DEFAULT;
     if (maxOutputSize >= LZ4_compressBound(inputSize)) {
         if (inputSize < LZ4_64Klimit) {
             return LZ4_compress_generic(ctx, source, dest, inputSize, NULL, 0, notLimited, byU16, noDict, noDictIssue, acceleration);
@@ -1237,8 +1221,7 @@ int LZ4_compress_fast_extState(void* state, const char* source, char* dest, int 
 int LZ4_compress_fast_extState_fastReset(void* state, const char* src, char* dst, int srcSize, int dstCapacity, int acceleration)
 {
     LZ4_stream_t_internal* ctx = &((LZ4_stream_t*)state)->internal_donotuse;
-    if (acceleration < 1) acceleration = LZ4_ACCELERATION_DEFAULT;
-    if (acceleration > LZ4_ACCELERATION_MAX) acceleration = LZ4_ACCELERATION_MAX;
+    if (acceleration < 1) acceleration = ACCELERATION_DEFAULT;
 
     if (dstCapacity >= LZ4_compressBound(srcSize)) {
         if (srcSize < LZ4_64Klimit) {
@@ -1463,12 +1446,6 @@ void LZ4_attach_dictionary(LZ4_stream_t* workingStream, const LZ4_stream_t* dict
              workingStream, dictionaryStream,
              dictCtx != NULL ? dictCtx->dictSize : 0);
 
-    /* Calling LZ4_resetStream_fast() here makes sure that changes will not be
-     * erased by subsequent calls to LZ4_resetStream_fast() in case stream was
-     * marked as having dirty context, e.g. requiring full reset.
-     */
-    LZ4_resetStream_fast(workingStream);
-
     if (dictCtx != NULL) {
         /* If the current offset is zero, we will never look in the
          * external dictionary context, since there is no value a table
@@ -1520,10 +1497,8 @@ int LZ4_compress_fast_continue (LZ4_stream_t* LZ4_stream,
 
     DEBUGLOG(5, "LZ4_compress_fast_continue (inputSize=%i)", inputSize);
 
-    if (streamPtr->dirty) { return 0; } /* Uninitialized structure detected */
     LZ4_renormDictT(streamPtr, inputSize);   /* avoid index overflow */
-    if (acceleration < 1) acceleration = LZ4_ACCELERATION_DEFAULT;
-    if (acceleration > LZ4_ACCELERATION_MAX) acceleration = LZ4_ACCELERATION_MAX;
+    if (acceleration < 1) acceleration = ACCELERATION_DEFAULT;
 
     /* invalidate tiny dictionaries */
     if ( (streamPtr->dictSize-1 < 4-1)   /* intentional underflow */
