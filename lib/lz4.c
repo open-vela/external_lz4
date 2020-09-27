@@ -247,7 +247,6 @@ static const int LZ4_minLength = (MFLIMIT+1);
 /*-************************************
 *  Types
 **************************************/
-#include <limits.h>
 #if defined(__cplusplus) || (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99 */)
 # include <stdint.h>
   typedef  uint8_t BYTE;
@@ -257,6 +256,7 @@ static const int LZ4_minLength = (MFLIMIT+1);
   typedef uint64_t U64;
   typedef uintptr_t uptrval;
 #else
+# include <limits.h>
 # if UINT_MAX != 4294967295UL
 #   error "LZ4 code (when not C++ or C99) assumes that sizeof(int) == 4"
 # endif
@@ -1192,7 +1192,6 @@ _last_literals:
                 return 0;   /* cannot compress within `dst` budget. Stored indexes in hash table are nonetheless fine */
             }
         }
-        DEBUGLOG(6, "Final literal run : %i literals", (int)lastRun);
         if (lastRun >= RUN_MASK) {
             size_t accumulator = lastRun - RUN_MASK;
             *op++ = RUN_MASK << ML_BITS;
@@ -1237,7 +1236,6 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
 
     if ((U32)srcSize > (U32)LZ4_MAX_INPUT_SIZE) { return 0; }  /* Unsupported srcSize, too large (or negative) */
     if (srcSize == 0) {   /* src == NULL supported if srcSize == 0 */
-        if (outputDirective != notLimited && dstCapacity <= 0) return 0;  /* no output, can't write anything */
         DEBUGLOG(5, "Generating an empty block");
         assert(outputDirective == notLimited || dstCapacity >= 1);
         assert(dst != NULL);
