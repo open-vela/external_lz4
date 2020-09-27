@@ -247,6 +247,7 @@ static const int LZ4_minLength = (MFLIMIT+1);
 /*-************************************
 *  Types
 **************************************/
+#include <limits.h>
 #if defined(__cplusplus) || (defined (__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L) /* C99 */)
 # include <stdint.h>
   typedef  uint8_t BYTE;
@@ -256,7 +257,6 @@ static const int LZ4_minLength = (MFLIMIT+1);
   typedef uint64_t U64;
   typedef uintptr_t uptrval;
 #else
-# include <limits.h>
 # if UINT_MAX != 4294967295UL
 #   error "LZ4 code (when not C++ or C99) assumes that sizeof(int) == 4"
 # endif
@@ -514,7 +514,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
             return (unsigned)r >> 3;
 #       elif (defined(__clang__) || (defined(__GNUC__) && ((__GNUC__ > 3) || \
                             ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 4))))) && \
-                        !defined(__TINYC__) && !defined(LZ4_FORCE_SW_BITCOUNT)
+                                        !defined(LZ4_FORCE_SW_BITCOUNT)
             return (unsigned)__builtin_ctz((U32)val) >> 3;
 #       else
             const U32 m = 0x01010101;
@@ -525,7 +525,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
         if (sizeof(val)==8) {
 #       if (defined(__clang__) || (defined(__GNUC__) && ((__GNUC__ > 3) || \
                             ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 4))))) && \
-                        !defined(__TINYC__) && !defined(LZ4_FORCE_SW_BITCOUNT)
+                                        !defined(LZ4_FORCE_SW_BITCOUNT)
             return (unsigned)__builtin_clzll((U64)val) >> 3;
 #       else
 #if 1
@@ -1192,6 +1192,7 @@ _last_literals:
                 return 0;   /* cannot compress within `dst` budget. Stored indexes in hash table are nonetheless fine */
             }
         }
+        DEBUGLOG(6, "Final literal run : %i literals", (int)lastRun);
         if (lastRun >= RUN_MASK) {
             size_t accumulator = lastRun - RUN_MASK;
             *op++ = RUN_MASK << ML_BITS;
@@ -1236,7 +1237,6 @@ LZ4_FORCE_INLINE int LZ4_compress_generic(
 
     if ((U32)srcSize > (U32)LZ4_MAX_INPUT_SIZE) { return 0; }  /* Unsupported srcSize, too large (or negative) */
     if (srcSize == 0) {   /* src == NULL supported if srcSize == 0 */
-        if (outputDirective != notLimited && dstCapacity <= 0) return 0;  /* no output, can't write anything */
         DEBUGLOG(5, "Generating an empty block");
         assert(outputDirective == notLimited || dstCapacity >= 1);
         assert(dst != NULL);
