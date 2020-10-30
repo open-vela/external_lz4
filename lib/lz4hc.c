@@ -53,7 +53,7 @@
 #include "lz4hc.h"
 
 
-/*===   Common LZ4 definitions   ===*/
+/*===   Common definitions   ===*/
 #if defined(__GNUC__)
 #  pragma GCC diagnostic ignored "-Wunused-function"
 #endif
@@ -61,19 +61,29 @@
 #  pragma clang diagnostic ignored "-Wunused-function"
 #endif
 
-/*===   Enums   ===*/
-typedef enum { noDictCtx, usingDictCtxHc } dictCtx_directive;
-
-
 #define LZ4_COMMONDEFS_ONLY
 #ifndef LZ4_SRC_INCLUDED
 #include "lz4.c"   /* LZ4_count, constants, mem */
 #endif
 
+
+/*===   Enums   ===*/
+typedef enum { noDictCtx, usingDictCtxHc } dictCtx_directive;
+
+
 /*===   Constants   ===*/
 #define OPTIMAL_ML (int)((ML_MASK-1)+MINMATCH)
 #define LZ4_OPT_NUM   (1<<12)
 
+/* for some reason, Visual Studio fails the aligment test on 32-bit x86 :
+ * it reports an aligment of 8-bytes,
+ * while LZ4_streamHC_t only requires alignment of 4-bytes
+ * resulting in initialization error when allocating state with malloc() */
+#if (defined(_MSC_VER) && !defined(_M_X64))
+#  define LZ4_ALIGN_TEST 0
+#else
+#  define LZ4_ALIGN_TEST 1
+#endif
 
 /*===   Macros   ===*/
 #define MIN(a,b)   ( (a) < (b) ? (a) : (b) )
@@ -158,11 +168,10 @@ int LZ4HC_countBack(const BYTE* const ip, const BYTE* const match,
 #endif
 
 
-LZ4_FORCE_INLINE U32 LZ4HC_rotatePattern(size_t const rotate, U32 const pattern)
+static U32 LZ4HC_rotatePattern(size_t const rotate, U32 const pattern)
 {
     size_t const bitsToRotate = (rotate & (sizeof(pattern) - 1)) << 3;
-    if (bitsToRotate == 0)
-        return pattern;
+    if (bitsToRotate == 0) return pattern;
     return LZ4HC_rotl32(pattern, (int)bitsToRotate);
 }
 
@@ -223,7 +232,7 @@ LZ4HC_reverseCountPattern(const BYTE* ip, const BYTE* const iLow, U32 pattern)
  * 4 byte MINMATCH would overflow.
  * @returns true if the match index is okay.
  */
-LZ4_FORCE_INLINE int LZ4HC_protectDictEnd(U32 const dictLimit, U32 const matchIndex)
+static int LZ4HC_protectDictEnd(U32 const dictLimit, U32 const matchIndex)
 {
     return ((U32)((dictLimit - 1) - matchIndex) >= 3);
 }
@@ -460,90 +469,83 @@ int LZ4HC_InsertAndFindBestMatch(LZ4HC_CCtx_internal* const hc4,   /* Index tabl
  * @return : 0 if ok,
  *           1 if buffer issue detected */
 LZ4_FORCE_INLINE int LZ4HC_encodeSequence (
-    const BYTE** _ip,
-    BYTE** _op,
-    const BYTE** _anchor,
+    const BYTE** ip,
+    BYTE** op,
+    const BYTE** anchor,
     int matchLength,
     const BYTE* const match,
     limitedOutput_directive limit,
     BYTE* oend)
 {
-#define ip      (*_ip)
-#define op      (*_op)
-#define anchor  (*_anchor)
-
     size_t length;
-    BYTE* const token = op++;
+    BYTE* const token = (*op)++;
 
 #if defined(LZ4_DEBUG) && (LZ4_DEBUG >= 6)
     static const BYTE* start = NULL;
     static U32 totalCost = 0;
-    U32 const pos = (start==NULL) ? 0 : (U32)(anchor - start);
-    U32 const ll = (U32)(ip - anchor);
+    U32 const pos = (start==NULL) ? 0 : (U32)(*anchor - start);
+    U32 const ll = (U32)(*ip - *anchor);
     U32 const llAdd = (ll>=15) ? ((ll-15) / 255) + 1 : 0;
     U32 const mlAdd = (matchLength>=19) ? ((matchLength-19) / 255) + 1 : 0;
     U32 const cost = 1 + llAdd + ll + 2 + mlAdd;
-    if (start==NULL) start = anchor;  /* only works for single segment */
+    if (start==NULL) start = *anchor;  /* only works for single segment */
     /* g_debuglog_enable = (pos >= 2228) & (pos <= 2262); */
     DEBUGLOG(6, "pos:%7u -- literals:%4u, match:%4i, offset:%5u, cost:%4u + %5u",
                 pos,
-                (U32)(ip - anchor), matchLength, (U32)(ip-match),
+                (U32)(*ip - *anchor), matchLength, (U32)(*ip-match),
                 cost, totalCost);
     totalCost += cost;
 #endif
 
     /* Encode Literal length */
-    length = (size_t)(ip - anchor);
+    length = (size_t)(*ip - *anchor);
     LZ4_STATIC_ASSERT(notLimited == 0);
     /* Check output limit */
-    if (limit && ((op + (length / 255) + length + (2 + 1 + LASTLITERALS)) > oend)) {
+    if (limit && ((*op + (length / 255) + length + (2 + 1 + LASTLITERALS)) > oend)) {
         DEBUGLOG(6, "Not enough room to write %i literals (%i bytes remaining)",
-                (int)length, (int)(oend - op));
+                (int)length, (int)(oend-*op));
         return 1;
     }
     if (length >= RUN_MASK) {
         size_t len = length - RUN_MASK;
         *token = (RUN_MASK << ML_BITS);
-        for(; len >= 255 ; len -= 255) *op++ = 255;
-        *op++ = (BYTE)len;
+        for(; len >= 255 ; len -= 255) *(*op)++ = 255;
+        *(*op)++ = (BYTE)len;
     } else {
         *token = (BYTE)(length << ML_BITS);
     }
 
     /* Copy Literals */
-    LZ4_wildCopy8(op, anchor, op + length);
-    op += length;
+    LZ4_wildCopy8(*op, *anchor, (*op) + length);
+    *op += length;
 
     /* Encode Offset */
-    assert( (ip - match) <= LZ4_DISTANCE_MAX );   /* note : consider providing offset as a value, rather than as a pointer difference */
-    LZ4_writeLE16(op, (U16)(ip - match)); op += 2;
+    assert( (*ip - match) <= LZ4_DISTANCE_MAX );   /* note : consider providing offset as a value, rather than as a pointer difference */
+    LZ4_writeLE16(*op, (U16)(*ip-match)); *op += 2;
 
     /* Encode MatchLength */
     assert(matchLength >= MINMATCH);
     length = (size_t)matchLength - MINMATCH;
-    if (limit && (op + (length / 255) + (1 + LASTLITERALS) > oend)) {
+    if (limit && (*op + (length / 255) + (1 + LASTLITERALS) > oend)) {
         DEBUGLOG(6, "Not enough room to write match length");
         return 1;   /* Check output limit */
     }
     if (length >= ML_MASK) {
         *token += ML_MASK;
         length -= ML_MASK;
-        for(; length >= 510 ; length -= 510) { *op++ = 255; *op++ = 255; }
-        if (length >= 255) { length -= 255; *op++ = 255; }
-        *op++ = (BYTE)length;
+        for(; length >= 510 ; length -= 510) { *(*op)++ = 255; *(*op)++ = 255; }
+        if (length >= 255) { length -= 255; *(*op)++ = 255; }
+        *(*op)++ = (BYTE)length;
     } else {
         *token += (BYTE)(length);
     }
 
     /* Prepare next loop */
-    ip += matchLength;
-    anchor = ip;
+    *ip += matchLength;
+    *anchor = *ip;
 
     return 0;
 }
-#undef ip
-#undef op
-#undef anchor
 
 LZ4_FORCE_INLINE int LZ4HC_compress_hashChain (
     LZ4HC_CCtx_internal* const ctx,
@@ -919,9 +921,7 @@ LZ4HC_compress_generic (
 
 int LZ4_sizeofStateHC(void) { return (int)sizeof(LZ4_streamHC_t); }
 
-#ifndef _MSC_VER  /* for some reason, Visual fails the aligment test on 32-bit x86 :
-                   * it reports an aligment of 8-bytes,
-                   * while actually aligning LZ4_streamHC_t on 4 bytes. */
+#if LZ4_ALIGN_TEST
 static size_t LZ4_streamHC_t_alignment(void)
 {
     typedef struct { char c; LZ4_streamHC_t t; } t_a;
@@ -934,9 +934,7 @@ static size_t LZ4_streamHC_t_alignment(void)
 int LZ4_compress_HC_extStateHC_fastReset (void* state, const char* src, char* dst, int srcSize, int dstCapacity, int compressionLevel)
 {
     LZ4HC_CCtx_internal* const ctx = &((LZ4_streamHC_t*)state)->internal_donotuse;
-#ifndef _MSC_VER  /* for some reason, Visual fails the aligment test on 32-bit x86 :
-                   * it reports an aligment of 8-bytes,
-                   * while actually aligning LZ4_streamHC_t on 4 bytes. */
+#if LZ4_ALIGN_TEST
     assert(((size_t)state & (LZ4_streamHC_t_alignment() - 1)) == 0);  /* check alignment */
 #endif
     if (((size_t)(state)&(sizeof(void*)-1)) != 0) return 0;   /* Error : state is not aligned for pointers (32 or 64 bits) */
@@ -1010,9 +1008,7 @@ LZ4_streamHC_t* LZ4_initStreamHC (void* buffer, size_t size)
     LZ4_streamHC_t* const LZ4_streamHCPtr = (LZ4_streamHC_t*)buffer;
     if (buffer == NULL) return NULL;
     if (size < sizeof(LZ4_streamHC_t)) return NULL;
-#ifndef _MSC_VER  /* for some reason, Visual fails the aligment test on 32-bit x86 :
-                   * it reports an aligment of 8-bytes,
-                   * while actually aligning LZ4_streamHC_t on 4 bytes. */
+#if LZ4_ALIGN_TEST
     if (((size_t)buffer) & (LZ4_streamHC_t_alignment() - 1)) return NULL;  /* alignment check */
 #endif
     /* if compilation fails here, LZ4_STREAMHCSIZE must be increased */
