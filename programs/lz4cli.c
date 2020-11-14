@@ -93,11 +93,11 @@ static unsigned displayLevel = 2;   /* 0 : no display ; 1: errors only ; 2 : dow
 ***************************************/
 #define DEFAULT_COMPRESSOR   LZ4IO_compressFilename
 #define DEFAULT_DECOMPRESSOR LZ4IO_decompressFilename
-int LZ4IO_compressFilename_Legacy(const char* input_filename, const char* output_filename, int compressionlevel, const LZ4IO_prefs_t* prefs);   /* hidden function */
-int LZ4IO_compressMultipleFilenames_Legacy(
+int LZ4IO_compressFilename_Legacy(LZ4IO_prefs_t* const prefs, const char* input_filename, const char* output_filename, int compressionlevel);   /* hidden function */
+int LZ4IO_compressMultipleFilenames_Legacy(LZ4IO_prefs_t* const prefs,
                             const char** inFileNamesTable, int ifntSize,
                             const char* suffix,
-                            int compressionLevel, const LZ4IO_prefs_t* prefs);
+                            int compressionLevel);
 
 /*-***************************
 *  Functions
@@ -747,11 +747,10 @@ int main(int argc, const char** argv)
     if (ifnIdx == 0) multiple_inputs = 0;
     if (mode == om_decompress) {
         if (multiple_inputs) {
-            const char* const dec_extension = !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION;
             assert(ifnIdx <= INT_MAX);
-            operationResult = LZ4IO_decompressMultipleFilenames(inFileNames, (int)ifnIdx, dec_extension, prefs);
+            operationResult = LZ4IO_decompressMultipleFilenames(prefs, inFileNames, (int)ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION);
         } else {
-            operationResult = DEFAULT_DECOMPRESSOR(input_filename, output_filename, prefs);
+            operationResult = DEFAULT_DECOMPRESSOR(prefs, input_filename, output_filename);
         }
     } else if (mode == om_list){
         operationResult = LZ4IO_displayCompressedFilesInfo(inFileNames, ifnIdx);
@@ -759,18 +758,16 @@ int main(int argc, const char** argv)
         if (legacy_format) {
             DISPLAYLEVEL(3, "! Generating LZ4 Legacy format (deprecated) ! \n");
             if(multiple_inputs){
-                const char* const leg_extension = !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION;
-                LZ4IO_compressMultipleFilenames_Legacy(inFileNames, (int)ifnIdx, leg_extension, cLevel, prefs);
+                LZ4IO_compressMultipleFilenames_Legacy(prefs, inFileNames, (int)ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION, cLevel);
             } else {
-                LZ4IO_compressFilename_Legacy(input_filename, output_filename, cLevel, prefs);
+                LZ4IO_compressFilename_Legacy(prefs, input_filename, output_filename, cLevel);
             }
         } else {
             if (multiple_inputs) {
-                const char* const comp_extension = !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION;
                 assert(ifnIdx <= INT_MAX);
-                operationResult = LZ4IO_compressMultipleFilenames(inFileNames, (int)ifnIdx, comp_extension, cLevel, prefs);
+                operationResult = LZ4IO_compressMultipleFilenames(prefs, inFileNames, (int)ifnIdx, !strcmp(output_filename,stdoutmark) ? stdoutmark : LZ4_EXTENSION, cLevel);
             } else {
-                operationResult = DEFAULT_COMPRESSOR(input_filename, output_filename, cLevel, prefs);
+                operationResult = DEFAULT_COMPRESSOR(prefs, input_filename, output_filename, cLevel);
     }   }   }
 
 _cleanup:
