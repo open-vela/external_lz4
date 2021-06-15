@@ -114,31 +114,18 @@ if(BUILD_SHARED_LIBS)
   list(APPEND LZ4_LIBRARIES_BUILT lz4_shared)
 endif()
 if(BUILD_STATIC_LIBS)
-  set(STATIC_LIB_NAME lz4)
-  if (MSVC AND BUILD_SHARED_LIBS)
-    set(STATIC_LIB_NAME lz4_static)
-  endif()
   add_library(lz4_static STATIC ${LZ4_SOURCES})
   set_target_properties(lz4_static PROPERTIES
-    OUTPUT_NAME ${STATIC_LIB_NAME}
+    OUTPUT_NAME lz4
     POSITION_INDEPENDENT_CODE ${LZ4_POSITION_INDEPENDENT_LIB})
   list(APPEND LZ4_LIBRARIES_BUILT lz4_static)
 endif()
 
-if(WIN32)
-# link to static library first because some functions may not exports to shared library
-  if(BUILD_STATIC_LIBS)
-    set(LZ4_LINK_LIBRARY lz4_static)
-  else()
-    set(LZ4_LINK_LIBRARY lz4_shared)
-  endif()
-else()
 # link to shared whenever possible, to static otherwise
-  if(BUILD_SHARED_LIBS)
-    set(LZ4_LINK_LIBRARY lz4_shared)
-  else()
-    set(LZ4_LINK_LIBRARY lz4_static)
-  endif()
+if(BUILD_SHARED_LIBS)
+  set(LZ4_LINK_LIBRARY lz4_shared)
+else()
+  set(LZ4_LINK_LIBRARY lz4_static)
 endif()
 
 # lz4
