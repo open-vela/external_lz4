@@ -145,14 +145,14 @@ checkTag: checkTag.c $(LZ4DIR)/lz4.h
 ifeq ($(POSIX_ENV),Yes)
 
 MD5:=md5sum
-ifneq (,$(filter $(shell $(UNAME)), Darwin ))
+ifneq (,$(filter $(shell uname), Darwin ))
 MD5:=md5 -r
 endif
 
 # note : we should probably settle on a single compare utility
 CMP:=cmp
 DIFF:=diff
-ifneq (,$(filter $(shell $(UNAME)),SunOS))
+ifneq (,$(filter $(shell uname),SunOS))
 DIFF:=gdiff
 endif
 
