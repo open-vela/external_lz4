@@ -40,7 +40,3 @@ ld.exe*
 # test artifacts
 *.lz4
 tmp*
-
-.built
-.depend
-Make.dep
