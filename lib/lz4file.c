@@ -50,6 +50,7 @@ typedef struct {
   LZ4F_cctx* cctxPtr;
   FILE* fp;
   LZ4_byte* dstBuf;
+  size_t maxWriteSize;
   size_t dstBufMaxSize;
 } LZ4_writeFile_t;
 
@@ -199,26 +200,26 @@ LZ4F_errorCode_t LZ4F_writeOpen(LZ4F_file** lz4f, FILE* fp, const LZ4F_preferenc
     switch (prefsPtr->frameInfo.blockSizeID) {
       case LZ4F_default :
       case LZ4F_max64KB :
-        maxWriteSize = 64 * 1024;
+        lz4fWrite->maxWriteSize = 64 * 1024;
         break;
       case LZ4F_max256KB:
-        maxWriteSize = 256 * 1024;
+        lz4fWrite->maxWriteSize = 256 * 1024;
         break;
       case LZ4F_max1MB:
-        maxWriteSize = 1 * 1024 * 1024;
+        lz4fWrite->maxWriteSize = 1 * 1024 * 1024;
         break;
       case LZ4F_max4MB:
-        maxWriteSize = 4 * 1024 * 1024;
+        lz4fWrite->maxWriteSize = 4 * 1024 * 1024;
         break;
       default:
         free(lz4fWrite);
         return -LZ4F_ERROR_maxBlockSize_invalid;
       }
     } else {
-      maxWriteSize = 64 * 1024;
+      lz4fWrite->maxWriteSize = 64 * 1024;
     }
 
-  lz4fWrite->dstBufMaxSize = LZ4F_compressBound(maxWriteSize, prefsPtr);
+  lz4fWrite->dstBufMaxSize = LZ4F_compressBound(lz4fWrite->maxWriteSize, prefsPtr);
   lz4fWrite->dstBuf = (LZ4_byte*)malloc(lz4fWrite->dstBufMaxSize);
   if (lz4fWrite->dstBuf == NULL) {
     free(lz4fWrite);
@@ -263,8 +264,8 @@ size_t LZ4F_write(LZ4F_file* lz4f, void* buf, size_t size)
   if (lz4f == NULL || buf == NULL)
     return -LZ4F_ERROR_GENERIC;
   while (remain) {
-    if (remain > lz4fWrite->dstBufMaxSize)
-      chunk = lz4fWrite->dstBufMaxSize;
+    if (remain > lz4fWrite->maxWriteSize)
+      chunk = lz4fWrite->maxWriteSize;
     else
       chunk = remain;
 
