@@ -11,17 +11,11 @@
 # The intention is that it can be easily moved to the root of the project
 # (together with meson_options.txt) and packaged for wrapdb.
 
-project(
-  'lz4',
-  ['c'],
-  license: 'BSD-2-Clause-Patent AND GPL-2.0-or-later',
-  default_options: [
-    'c_std=c99',
-    'buildtype=release',
-    'warning_level=3'
-  ],
+project('lz4', ['c'],
+  license: ['BSD', 'GPLv2'],
+  default_options : ['c_std=c99',
+    'buildtype=release'],
   version: 'DUMMY',
-  meson_version: '>=0.49.0'
-)
+  meson_version: '>=0.47.0')
 
 subdir('meson')
