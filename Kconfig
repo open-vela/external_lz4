@@ -14,16 +14,31 @@
 # limitations under the License.
 #
 
-include $(APPDIR)/Make.defs
+config LIB_LZ4
+	tristate "LZ4 compression library"
+	default n
 
-CSRCS += $(wildcard lib/*.c)
-CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(APPDIR)/external/lz4/lib}
+if LIB_LZ4
 
-ifneq ($(CONFIG_UTILS_LZ4),)
-PROGNAME += $(CONFIG_UTILS_LZ4_PROGNAME)
-PRIORITY += $(CONFIG_UTILS_LZ4_PRIORITY)
-STACKSIZE += $(CONFIG_UTILS_LZ4_STACKSIZE)
-MAINSRC += programs/lz4cli.c
+config UTILS_LZ4
+	bool "LZ4 tool"
+	default n
+	---help---
+		Enable lz4 utility
+
+if UTILS_LZ4
+config UTILS_LZ4_PROGNAME
+	string "Programe Name"
+	default "lz4"
+
+config UTILS_LZ4_PRIORITY
+	int "lz4 utility priority"
+	default 100
+
+config UTILS_LZ4_STACKSIZE
+	int "lz4 utility statcksize"
+	default DEFAULT_TASK_STACKSIZE
+
 endif
 
-include $(APPDIR)/Application.mk
+endif
