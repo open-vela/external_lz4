@@ -529,7 +529,6 @@ extern "C" {
         ITEM(ERROR_headerChecksum_invalid) \
         ITEM(ERROR_contentChecksum_invalid) \
         ITEM(ERROR_frameDecoding_alreadyStarted) \
-        ITEM(ERROR_compressionState_uninitialized) \
         ITEM(ERROR_maxCode)
 
 #define LZ4F_GENERATE_ENUM(ENUM) LZ4F_##ENUM,
