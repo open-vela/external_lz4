@@ -13,9 +13,6 @@
 #
 name: lz4 CI
 on: [push, pull_request]
-permissions:
-  contents: read
-
 jobs:
   lz4-c-compilers:
     name: CC=${{ matrix.cc }}, ${{ matrix.os }}
