@@ -175,39 +175,6 @@ extern "C" {
 #endif
 
 
-
-/*-****************************************
-*  Allocation functions
-******************************************/
-/*
- * A modified version of realloc().
- * If UTIL_realloc() fails the original block is freed.
-*/
-UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
-{
-    void* const newptr = realloc(ptr, size);
-    if (newptr) return newptr;
-    free(ptr);
-    return NULL;
-}
-
-
-/*-****************************************
-*  String functions
-******************************************/
-/*
- * A modified version of realloc().
- * If UTIL_realloc() fails the original block is freed.
-*/
-UTIL_STATIC int UTIL_sameString(const char* a, const char* b)
-{
-    assert(a!=NULL && b!=NULL);  /* unsupported scenario */
-    if (a==NULL) return 0;
-    if (b==NULL) return 0;
-    return !strcmp(a,b);
-}
-
-
 /*-****************************************
 *  Time functions
 ******************************************/
@@ -484,6 +451,19 @@ UTIL_STATIC U64 UTIL_getTotalFileSize(const char** fileNamesTable, unsigned nbFi
 }
 
 
+/*
+ * A modified version of realloc().
+ * If UTIL_realloc() fails the original block is freed.
+*/
+UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
+{
+    void* const newptr = realloc(ptr, size);
+    if (newptr) return newptr;
+    free(ptr);
+    return NULL;
+}
+
+
 #ifdef _WIN32
 #  define UTIL_HAS_CREATEFILELIST
 
@@ -685,8 +665,8 @@ UTIL_createFileList(const char** inputNames, unsigned inputNamesNb,
 UTIL_STATIC void
 UTIL_freeFileList(const char** filenameTable, char* allocatedBuffer)
 {
-    free(allocatedBuffer);
-    free((void*)filenameTable);
+    if (allocatedBuffer) free(allocatedBuffer);
+    if (filenameTable) free((void*)filenameTable);
 }
 
 
