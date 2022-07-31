@@ -188,7 +188,11 @@
 /*-************************************
 *  Memory routines
 **************************************/
-#ifdef LZ4_USER_MEMORY_FUNCTIONS
+#if defined(LZ4_STATIC_LINKING_ONLY_DISABLE_MEMORY_ALLOCATION)
+#  define ALLOC(s)          lz4_error_memory_allocation_is_disabled
+#  define ALLOC_AND_ZERO(s) lz4_error_memory_allocation_is_disabled
+#  define FREEMEM(p)        lz4_error_memory_allocation_is_disabled
+#elif defined(LZ4_USER_MEMORY_FUNCTIONS)
 /* memory management functions can be customized by user project.
  * Below functions must exist somewhere in the Project
  * and be available at link time */
@@ -206,10 +210,7 @@ void  LZ4_free(void* p);
 #endif
 
 #include <string.h>   /* memset, memcpy */
-#if !defined(LZ4_memset)
-#  define LZ4_memset(p,v,s) memset((p),(v),(s))
-#endif
-#define MEM_INIT(p,v,s)   LZ4_memset((p),(v),(s))
+#define MEM_INIT(p,v,s)   memset((p),(v),(s))
 
 
 /*-************************************
@@ -320,20 +321,10 @@ typedef enum {
  * memcpy() as if it were standard compliant, so it can inline it in freestanding
  * environments. This is needed when decompressing the Linux Kernel, for example.
  */
-#if !defined(LZ4_memcpy)
-#  if defined(__GNUC__) && (__GNUC__ >= 4)
-#    define LZ4_memcpy(dst, src, size) __builtin_memcpy(dst, src, size)
-#  else
-#    define LZ4_memcpy(dst, src, size) memcpy(dst, src, size)
-#  endif
-#endif
-
-#if !defined(LZ4_memmove)
-#  if defined(__GNUC__) && (__GNUC__ >= 4)
-#    define LZ4_memmove __builtin_memmove
-#  else
-#    define LZ4_memmove memmove
-#  endif
+#if defined(__GNUC__) && (__GNUC__ >= 4)
+#define LZ4_memcpy(dst, src, size) __builtin_memcpy(dst, src, size)
+#else
+#define LZ4_memcpy(dst, src, size) memcpy(dst, src, size)
 #endif
 
 static unsigned LZ4_isLittleEndian(void)
@@ -538,7 +529,7 @@ static unsigned LZ4_NbCommonBytes (reg_t val)
 * including _tzcnt_u64. Therefore, we need to neuter the _tzcnt_u64 code path for ARM64EC.
 ****************************************************************************************************/
 #         if defined(__clang__) && (__clang_major__ < 10)
-            /* Avoid undefined clang-cl intrinsics issue.
+            /* Avoid undefined clang-cl intrinics issue.
              * See https://github.com/lz4/lz4/pull/1017 for details. */
             return (unsigned)__builtin_ia32_tzcnt_u64(val) >> 3;
 #         else
@@ -1453,6 +1444,7 @@ int LZ4_compress_destSize(const char* src, char* dst, int* srcSizePtr, int targe
 *  Streaming functions
 ********************************/
 
+#if !defined(LZ4_STATIC_LINKING_ONLY_DISABLE_MEMORY_ALLOCATION)
 LZ4_stream_t* LZ4_createStream(void)
 {
     LZ4_stream_t* const lz4s = (LZ4_stream_t*)ALLOC(sizeof(LZ4_stream_t));
@@ -1462,6 +1454,7 @@ LZ4_stream_t* LZ4_createStream(void)
     LZ4_initStream(lz4s, sizeof(*lz4s));
     return lz4s;
 }
+#endif
 
 static size_t LZ4_stream_t_alignment(void)
 {
@@ -1495,6 +1488,7 @@ void LZ4_resetStream_fast(LZ4_stream_t* ctx) {
     LZ4_prepareTable(&(ctx->internal_donotuse), 0, byU32);
 }
 
+#if !defined(LZ4_STATIC_LINKING_ONLY_DISABLE_MEMORY_ALLOCATION)
 int LZ4_freeStream (LZ4_stream_t* LZ4_stream)
 {
     if (!LZ4_stream) return 0;   /* support free on NULL */
@@ -1502,6 +1496,7 @@ int LZ4_freeStream (LZ4_stream_t* LZ4_stream)
     FREEMEM(LZ4_stream);
     return (0);
 }
+#endif
 
 
 #define HASH_UNIT sizeof(reg_t)
@@ -1716,7 +1711,7 @@ int LZ4_saveDict (LZ4_stream_t* LZ4_dict, char* safeBuffer, int dictSize)
     if (dictSize > 0) {
         const BYTE* const previousDictEnd = dict->dictionary + dict->dictSize;
         assert(dict->dictionary);
-        LZ4_memmove(safeBuffer, previousDictEnd - dictSize, dictSize);
+        memmove(safeBuffer, previousDictEnd - dictSize, dictSize);
     }
 
     dict->dictionary = (const BYTE*)safeBuffer;
@@ -1933,7 +1928,7 @@ LZ4_decompress_generic(
 
                 if (length <= (size_t)(lowPrefix-match)) {
                     /* match fits entirely within external dictionary : just copy */
-                    LZ4_memmove(op, dictEnd - (lowPrefix-match), length);
+                    memmove(op, dictEnd - (lowPrefix-match), length);
                     op += length;
                 } else {
                     /* match stretches into both external dictionary and current block */
@@ -2077,7 +2072,7 @@ LZ4_decompress_generic(
                         goto _output_error;
                     }
                 }
-                LZ4_memmove(op, ip, length);  /* supports overlapping memory regions; only matters for in-place decompression scenarios */
+                memmove(op, ip, length);  /* supports overlapping memory regions; only matters for in-place decompression scenarios */
                 ip += length;
                 op += length;
                 /* Necessarily EOF when !partialDecoding.
@@ -2122,7 +2117,7 @@ LZ4_decompress_generic(
 
                 if (length <= (size_t)(lowPrefix-match)) {
                     /* match fits entirely within external dictionary : just copy */
-                    LZ4_memmove(op, dictEnd - (lowPrefix-match), length);
+                    memmove(op, dictEnd - (lowPrefix-match), length);
                     op += length;
                 } else {
                     /* match stretches into both external dictionary and current block */
@@ -2334,6 +2329,7 @@ int LZ4_decompress_fast_doubleDict(const char* source, char* dest, int originalS
 
 /*===== streaming decompression functions =====*/
 
+#if !defined(LZ4_STATIC_LINKING_ONLY_DISABLE_MEMORY_ALLOCATION)
 LZ4_streamDecode_t* LZ4_createStreamDecode(void)
 {
     LZ4_STATIC_ASSERT(sizeof(LZ4_streamDecode_t) >= sizeof(LZ4_streamDecode_t_internal));
@@ -2346,6 +2342,7 @@ int LZ4_freeStreamDecode (LZ4_streamDecode_t* LZ4_stream)
     FREEMEM(LZ4_stream);
     return 0;
 }
+#endif
 
 /*! LZ4_setStreamDecode() :
  *  Use this function to instruct where to find the dictionary.
@@ -2571,11 +2568,13 @@ int LZ4_resetStreamState(void* state, char* inputBuffer)
     return 0;
 }
 
+#if !defined(LZ4_STATIC_LINKING_ONLY_DISABLE_MEMORY_ALLOCATION)
 void* LZ4_create (char* inputBuffer)
 {
     (void)inputBuffer;
     return LZ4_createStream();
 }
+#endif
 
 char* LZ4_slideInputBuffer (void* state)
 {
