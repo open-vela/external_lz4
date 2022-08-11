@@ -9,21 +9,9 @@
  */
 
 /*
- * This program takes a file in input,
- * performs an LZ4 round-trip test (compress + decompress)
- * compares the result with original
- * and generates an abort() on corruption detection,
- * in order for afl to register the event as a crash.
-*/
-
-
-/*===========================================
-*   Tuning Constant
-*==========================================*/
-#ifndef MIN_CLEVEL
-#  define MIN_CLEVEL (int)(-5)
-#endif
-
+ * abiTest :
+ * ensure ABI stability expectations are not broken by a new version
+**/
 
 
 /*===========================================
@@ -39,7 +27,7 @@
 #include "xxhash.h"
 
 #include "lz4.h"
-#include "lz4hc.h"
+#include "lz4frame.h"
 
 
 /*===========================================
@@ -72,23 +60,8 @@ static size_t checkBuffers(const void* buff1, const void* buff2, size_t buffSize
 }
 
 
-/* select a compression level
- * based on first bytes present in a reference buffer */
-static int select_clevel(const void* refBuff, size_t refBuffSize)
-{
-    const int minCLevel = MIN_CLEVEL;
-    const int maxClevel = LZ4HC_CLEVEL_MAX;
-    const int cLevelSpan = maxClevel - minCLevel;
-    size_t const hashLength = MIN(16, refBuffSize);
-    unsigned const h32 = XXH32(refBuff, hashLength, 0);
-    int const randL = h32 % (cLevelSpan+1);
-
-    return minCLevel + randL;
-}
-
-
-typedef int (*compressFn)(const char* src, char* dst, int srcSize, int dstSize, int cLevel);
-
+LZ4_stream_t LZ4_cState;
+LZ4_streamDecode_t LZ4_dState;
 
 /** roundTripTest() :
  *  Compresses `srcBuff` into `compressedBuff`,
@@ -100,19 +73,20 @@ typedef int (*compressFn)(const char* src, char* dst, int srcSize, int dstSize, 
  *         for compression to be guaranteed to work */
 static void roundTripTest(void* resultBuff, size_t resultBuffCapacity,
                           void* compressedBuff, size_t compressedBuffCapacity,
-                    const void* srcBuff, size_t srcSize,
-                          int clevel)
+                    const void* srcBuff, size_t srcSize)
 {
-    int const proposed_clevel = clevel ? clevel : select_clevel(srcBuff, srcSize);
-    int const selected_clevel = proposed_clevel < 0 ? -proposed_clevel : proposed_clevel;   /* if level < 0, it becomes an acceleration value */
-    compressFn compress = selected_clevel >= LZ4HC_CLEVEL_MIN ? LZ4_compress_HC : LZ4_compress_fast;
-    int const cSize = compress((const char*)srcBuff, (char*)compressedBuff, (int)srcSize, (int)compressedBuffCapacity, selected_clevel);
-    CONTROL_MSG(cSize == 0, "Compression error !");
-
-    {   int const dSize = LZ4_decompress_safe((const char*)compressedBuff, (char*)resultBuff, cSize, (int)resultBuffCapacity);
-        CONTROL_MSG(dSize < 0, "Decompression detected an error !");
-        CONTROL_MSG(dSize != (int)srcSize, "Decompression corruption error : wrong decompressed size !");
-    }
+    int const acceleration = 1;
+    // Note : can't use LZ4_initStream(), because it's only present since v1.9.0
+    memset(&LZ4_cState, 0, sizeof(LZ4_cState));
+    {   int const cSize = LZ4_compress_fast_continue(&LZ4_cState, (const char*)srcBuff, (char*)compressedBuff, (int)srcSize, (int)compressedBuffCapacity, acceleration);
+        CONTROL_MSG(cSize == 0, "Compression error !");
+        {   int const dInit = LZ4_setStreamDecode(&LZ4_dState, NULL, 0);
+            CONTROL_MSG(dInit == 0, "LZ4_setStreamDecode error !");
+        }
+        {   int const dSize = LZ4_decompress_safe_continue (&LZ4_dState, (const char*)compressedBuff, (char*)resultBuff, cSize, (int)resultBuffCapacity);
+            CONTROL_MSG(dSize < 0, "Decompression detected an error !");
+            CONTROL_MSG(dSize != (int)srcSize, "Decompression corruption error : wrong decompressed size !");
+    }   }
 
     /* check potential content corruption error */
     assert(resultBuffCapacity >= srcSize);
@@ -121,10 +95,9 @@ static void roundTripTest(void* resultBuff, size_t resultBuffCapacity,
                     "Silent decoding corruption, at pos %u !!!",
                     (unsigned)errorPos);
     }
-
 }
 
-static void roundTripCheck(const void* srcBuff, size_t srcSize, int clevel)
+static void roundTripCheck(const void* srcBuff, size_t srcSize)
 {
     size_t const cBuffSize = LZ4_COMPRESSBOUND(srcSize);
     void* const cBuff = malloc(cBuffSize);
@@ -137,8 +110,7 @@ static void roundTripCheck(const void* srcBuff, size_t srcSize, int clevel)
 
     roundTripTest(rBuff, cBuffSize,
                   cBuff, cBuffSize,
-                  srcBuff, srcSize,
-                  clevel);
+                  srcBuff, srcSize);
 
     free(rBuff);
     free(cBuff);
@@ -199,7 +171,7 @@ static void loadFile(void* buffer, const char* fileName, size_t fileSize)
 }
 
 
-static void fileCheck(const char* fileName, int clevel)
+static void fileCheck(const char* fileName)
 {
     size_t const fileSize = getFileSize(fileName);
     void* const buffer = malloc(fileSize + !fileSize /* avoid 0 */);
@@ -208,7 +180,7 @@ static void fileCheck(const char* fileName, int clevel)
         exit(4);
     }
     loadFile(buffer, fileName, fileSize);
-    roundTripCheck(buffer, fileSize, clevel);
+    roundTripCheck(buffer, fileSize);
     free (buffer);
 }
 
@@ -230,19 +202,17 @@ int main(int argCount, const char** argv)
 {
     const char* const exeName = argv[0];
     int argNb = 1;
-    int clevel = 0;
+    // Note : LZ4_VERSION_STRING requires >= v1.7.3+
+    MSG("abiTest, built binary based on API %s \n", LZ4_VERSION_STRING);
+    // Note : LZ4_versionString() requires >= v1.7.5+
+    MSG("currently linked to dll %s \n", LZ4_versionString());
 
     assert(argCount >= 1);
     if (argCount < 2) return bad_usage(exeName);
 
-    if (argv[1][0] == '-') {
-        clevel = argv[1][1] - '0';
-        argNb = 2;
-    }
-
     if (argNb >= argCount) return bad_usage(exeName);
 
-    fileCheck(argv[argNb], clevel);
+    fileCheck(argv[argNb]);
     MSG("no pb detected \n");
     return 0;
 }
