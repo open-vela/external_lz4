@@ -25,6 +25,7 @@ _codelite/
 _codelite_lz4/
 bin/
 *.zip
+*.swp
 
 # analyzers
 infer-out
@@ -40,7 +41,3 @@ ld.exe*
 # test artifacts
 *.lz4
 tmp*
-
-.built
-.depend
-Make.dep

@@ -1,23 +1,11 @@
 This directory contains [GitHub Actions](https://github.com/features/actions) workflow files.
 
-# Maintenance Schedule
-
-[`ubuntu-16.04` environment will be removed at September, 2021.]((https://github.blog/changelog/2021-04-29-github-actions-ubuntu-16-04-lts-virtual-environment-will-be-removed-on-september-20-2021/).
-----------------------------------------------------------------
-
-We also will remove test for the following compilers.
-
-- gcc: 4.4, 4.6, 4.7
-- clang: 3.5, 3.6, 3.7, 3.8
-
-
-
 # Known issues
 
 ## USAN, ASAN (`lz4-ubsan-x64`, `lz4-ubsan-x86`, `lz4-asan-x64`)
 
 For now, `lz4-ubsan-*` ignores the exit code of `make usan` and `make usan32`.
-Because there're several issues which may take relatively long time to resolve.
+Because there are several issues which may take relatively long time to resolve.
 
 We'll fully enable it when we ensure `make usan` is ready for all commits and PRs.
 
