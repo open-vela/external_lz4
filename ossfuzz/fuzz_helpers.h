@@ -4,8 +4,7 @@
  *
  * This source code is licensed under both the BSD-style license (found in the
  * LICENSE file in the root directory of this source tree) and the GPLv2 (found
- * in the COPYING file in the root directory of this source tree),
- * meaning you may select, at your option, one of the above-listed licenses.
+ * in the COPYING file in the root directory of this source tree).
  */
 
 /**
