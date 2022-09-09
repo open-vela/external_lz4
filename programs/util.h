@@ -175,6 +175,39 @@ extern "C" {
 #endif
 
 
+
+/*-****************************************
+*  Allocation functions
+******************************************/
+/*
+ * A modified version of realloc().
+ * If UTIL_realloc() fails the original block is freed.
+*/
+UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
+{
+    void* const newptr = realloc(ptr, size);
+    if (newptr) return newptr;
+    free(ptr);
+    return NULL;
+}
+
+
+/*-****************************************
+*  String functions
+******************************************/
+/*
+ * A modified version of realloc().
+ * If UTIL_realloc() fails the original block is freed.
+*/
+UTIL_STATIC int UTIL_sameString(const char* a, const char* b)
+{
+    assert(a!=NULL && b!=NULL);  /* unsupported scenario */
+    if (a==NULL) return 0;
+    if (b==NULL) return 0;
+    return !strcmp(a,b);
+}
+
+
 /*-****************************************
 *  Time functions
 ******************************************/
@@ -317,6 +350,7 @@ UTIL_STATIC void UTIL_waitForNextTick(void)
 
 
 UTIL_STATIC int UTIL_isRegFile(const char* infilename);
+UTIL_STATIC int UTIL_isRegFD(int fd);
 
 
 UTIL_STATIC int UTIL_setFileStat(const char *filename, stat_t *statbuf)
@@ -352,6 +386,19 @@ UTIL_STATIC int UTIL_setFileStat(const char *filename, stat_t *statbuf)
 }
 
 
+UTIL_STATIC int UTIL_getFDStat(int fd, stat_t *statbuf)
+{
+    int r;
+#if defined(_MSC_VER)
+    r = _fstat64(fd, statbuf);
+    if (r || !(statbuf->st_mode & S_IFREG)) return 0;   /* No good... */
+#else
+    r = fstat(fd, statbuf);
+    if (r || !S_ISREG(statbuf->st_mode)) return 0;   /* No good... */
+#endif
+    return 1;
+}
+
 UTIL_STATIC int UTIL_getFileStat(const char* infilename, stat_t *statbuf)
 {
     int r;
@@ -363,6 +410,17 @@ UTIL_STATIC int UTIL_getFileStat(const char* infilename, stat_t *statbuf)
     if (r || !S_ISREG(statbuf->st_mode)) return 0;   /* No good... */
 #endif
     return 1;
+}
+
+
+UTIL_STATIC int UTIL_isRegFD(int fd)
+{
+    stat_t statbuf;
+#ifdef _WIN32
+    /* Windows runtime library always open file descriptors 0, 1 and 2 in text mode, therefore we can't use them for binary I/O */
+    if(fd < 3) return 0;
+#endif
+    return UTIL_getFDStat(fd, &statbuf); /* Only need to know whether it is a regular file */
 }
 
 
@@ -423,19 +481,6 @@ UTIL_STATIC U64 UTIL_getTotalFileSize(const char** fileNamesTable, unsigned nbFi
     for (n=0; n<nbFiles; n++)
         total += UTIL_getFileSize(fileNamesTable[n]);
     return total;
-}
-
-
-/*
- * A modified version of realloc().
- * If UTIL_realloc() fails the original block is freed.
-*/
-UTIL_STATIC void* UTIL_realloc(void* ptr, size_t size)
-{
-    void* const newptr = realloc(ptr, size);
-    if (newptr) return newptr;
-    free(ptr);
-    return NULL;
 }
 
 
@@ -640,8 +685,8 @@ UTIL_createFileList(const char** inputNames, unsigned inputNamesNb,
 UTIL_STATIC void
 UTIL_freeFileList(const char** filenameTable, char* allocatedBuffer)
 {
-    if (allocatedBuffer) free(allocatedBuffer);
-    if (filenameTable) free((void*)filenameTable);
+    free(allocatedBuffer);
+    free((void*)filenameTable);
 }
 
 
