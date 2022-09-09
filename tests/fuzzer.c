@@ -30,6 +30,7 @@
 #  pragma warning(disable : 4127)    /* disable: C4127: conditional expression is constant */
 #  pragma warning(disable : 4146)    /* disable: C4146: minus unsigned expression */
 #  pragma warning(disable : 4310)    /* disable: C4310: constant char value > 127 */
+#  pragma warning(disable : 26451)   /* disable: C26451: Arithmetic overflow */
 #endif
 
 
@@ -494,7 +495,14 @@ static int FUZ_test(U32 seed, U32 nbCycles, const U32 startCycle, const double c
         {   char* const cBuffer_exact = (char*)malloc((size_t)compressedSize);
             assert(cBuffer_exact != NULL);
             assert(compressedSize <= (int)compressedBufferSize);
+#if defined(_MSC_VER) && (_MSC_VER <= 1933) /* MSVC 2022 ver 17.3 or earlier */
+#  pragma warning(push)
+#  pragma warning(disable : 6385) /* lz4\tests\fuzzer.c(497): warning C6385: Reading invalid data from 'compressedBuffer'. */
+#endif
             memcpy(cBuffer_exact, compressedBuffer, compressedSize);
+#if defined(_MSC_VER) && (_MSC_VER <= 1933) /* MSVC 2022 ver 17.3 or earlier */
+#  pragma warning(pop)
+#endif
 
             /* Test decoding with output size exactly correct => must work */
             FUZ_DISPLAYTEST("LZ4_decompress_fast() with exact output buffer");
@@ -571,7 +579,7 @@ static int FUZ_test(U32 seed, U32 nbCycles, const U32 startCycle, const double c
                 for (;;) {
                     /* keep some original src */
                     {   U32 const nbBits = FUZ_rand(&randState) % maxNbBits;
-                        size_t const mask = (1<<nbBits) - 1;
+                        size_t const mask = (1ULL <<nbBits) - 1;
                         size_t const skipLength = FUZ_rand(&randState) & mask;
                         pos += skipLength;
                     }
@@ -579,7 +587,7 @@ static int FUZ_test(U32 seed, U32 nbCycles, const U32 startCycle, const double c
                     /* add noise */
                     {   U32 const nbBitsCodes = FUZ_rand(&randState) % maxNbBits;
                         U32 const nbBits = nbBitsCodes ? nbBitsCodes-1 : 0;
-                        size_t const mask = (1<<nbBits) - 1;
+                        size_t const mask = (1ULL <<nbBits) - 1;
                         size_t const rNoiseLength = (FUZ_rand(&randState) & mask) + 1;
                         size_t const noiseLength = MIN(rNoiseLength, (size_t)compressedSize-pos);
                         size_t const noiseStart = FUZ_rand(&randState) % (COMPRESSIBLE_NOISE_LENGTH - noiseLength);
@@ -628,6 +636,46 @@ static int FUZ_test(U32 seed, U32 nbCycles, const U32 startCycle, const double c
             FUZ_CHECKTEST(decResult != targetSize, "LZ4_decompress_safe_partial did not regenerated required amount of data (%i < %i <= %i)", decResult, targetSize, blockSize);
             FUZ_CHECKTEST(decodedBuffer[targetSize] != sentinel, "LZ4_decompress_safe_partial overwrite beyond requested size (though %i <= %i <= %i)", decResult, targetSize, blockSize);
             FUZ_CHECKTEST(memcmp(block, decodedBuffer, (size_t)targetSize), "LZ4_decompress_safe_partial: corruption detected in regenerated data");
+        }
+
+        /* Partial decompression using dictionary. */
+        FUZ_DISPLAYTEST("test LZ4_decompress_safe_partial_usingDict using no dict");
+        {   size_t const missingOutBytes = FUZ_rand(&randState) % (unsigned)blockSize;
+            int const targetSize = (int)((size_t)blockSize - missingOutBytes);
+            size_t const extraneousInBytes = FUZ_rand(&randState) % 2;
+            int const inCSize = (int)((size_t)compressedSize + extraneousInBytes);
+            char const sentinel = decodedBuffer[targetSize] = block[targetSize] ^ 0x5A;
+            int const decResult = LZ4_decompress_safe_partial_usingDict(compressedBuffer, decodedBuffer, inCSize, targetSize, blockSize, NULL, 0);
+            FUZ_CHECKTEST(decResult<0, "LZ4_decompress_safe_partial_usingDict failed despite valid input data (error:%i)", decResult);
+            FUZ_CHECKTEST(decResult != targetSize, "LZ4_decompress_safe_partial_usingDict did not regenerated required amount of data (%i < %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(decodedBuffer[targetSize] != sentinel, "LZ4_decompress_safe_partial_usingDict overwrite beyond requested size (though %i <= %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(memcmp(block, decodedBuffer, (size_t)targetSize), "LZ4_decompress_safe_partial_usingDict: corruption detected in regenerated data");
+        }
+
+        FUZ_DISPLAYTEST("test LZ4_decompress_safe_partial_usingDict() using prefix as dict");
+        {   size_t const missingOutBytes = FUZ_rand(&randState) % (unsigned)blockSize;
+            int const targetSize = (int)((size_t)blockSize - missingOutBytes);
+            size_t const extraneousInBytes = FUZ_rand(&randState) % 2;
+            int const inCSize = (int)((size_t)compressedSize + extraneousInBytes);
+            char const sentinel = decodedBuffer[targetSize] = block[targetSize] ^ 0x5A;
+            int const decResult = LZ4_decompress_safe_partial_usingDict(compressedBuffer, decodedBuffer, inCSize, targetSize, blockSize, decodedBuffer, dictSize);
+            FUZ_CHECKTEST(decResult<0, "LZ4_decompress_safe_partial_usingDict failed despite valid input data (error:%i)", decResult);
+            FUZ_CHECKTEST(decResult != targetSize, "LZ4_decompress_safe_partial_usingDict did not regenerated required amount of data (%i < %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(decodedBuffer[targetSize] != sentinel, "LZ4_decompress_safe_partial_usingDict overwrite beyond requested size (though %i <= %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(memcmp(block, decodedBuffer, (size_t)targetSize), "LZ4_decompress_safe_partial_usingDict: corruption detected in regenerated data");
+        }
+
+        FUZ_DISPLAYTEST("test LZ4_decompress_safe_partial_usingDict() using external dict");
+        {   size_t const missingOutBytes = FUZ_rand(&randState) % (unsigned)blockSize;
+            int const targetSize = (int)((size_t)blockSize - missingOutBytes);
+            size_t const extraneousInBytes = FUZ_rand(&randState) % 2;
+            int const inCSize = (int)((size_t)compressedSize + extraneousInBytes);
+            char const sentinel = decodedBuffer[targetSize] = block[targetSize] ^ 0x5A;
+            int const decResult = LZ4_decompress_safe_partial_usingDict(compressedBuffer, decodedBuffer, inCSize, targetSize, blockSize, dict, dictSize);
+            FUZ_CHECKTEST(decResult<0, "LZ4_decompress_safe_partial_usingDict failed despite valid input data (error:%i)", decResult);
+            FUZ_CHECKTEST(decResult != targetSize, "LZ4_decompress_safe_partial_usingDict did not regenerated required amount of data (%i < %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(decodedBuffer[targetSize] != sentinel, "LZ4_decompress_safe_partial_usingDict overwrite beyond requested size (though %i <= %i <= %i)", decResult, targetSize, blockSize);
+            FUZ_CHECKTEST(memcmp(block, decodedBuffer, (size_t)targetSize), "LZ4_decompress_safe_partial_usingDict: corruption detected in regenerated data");
         }
 
         /* Test Compression with limited output size */
