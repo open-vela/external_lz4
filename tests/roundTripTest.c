@@ -213,7 +213,7 @@ static void fileCheck(const char* fileName, int clevel)
 }
 
 
-int bad_usage(const char* exeName)
+static int bad_usage(const char* exeName)
 {
     MSG(" \n");
     MSG("bad usage: \n");
